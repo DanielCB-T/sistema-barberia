@@ -6,12 +6,12 @@
 
 :root {
   --navy-950: #171b26;
-  --navy-900: #1e2330;
-  --navy-800: #262c3d;
+  --navy-900: #2C333E;
+  --navy-800: #2C333E;
   --navy-700: #323a4f;
   --navy-600: #4a5470;
   --bone-50: #faf8f4;
-  --bone-100: #f3efe7;
+  --bone-100: #f9f8f5;
   --bone-200: #e7e0d3;
   --rust-500: #c5613f;
   --rust-600: #a94f31;
@@ -256,7 +256,7 @@ input, select, textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bone-50);
+  background: url('/fondoLogin.png') no-repeat center center fixed;
   position: relative;
   overflow: hidden;
   padding: 24px;
