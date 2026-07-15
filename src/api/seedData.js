@@ -26,7 +26,7 @@ export const seedServices = [
     price: 80,
     duration: 30,
     category: 'Limpieza',
-    image: 'https://images.unsplash.com/photo-1519415943484-9fa1873496d4?w=600&q=80',
+    image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQIri1YNR7s7Jg8E2yvziuT3iKRVFIxDXTKKAo_bRRKJRZajW9TPDR56Wpj&s=10',
     description: 'Limpieza profunda, exfoliación y mascarilla relajante.',
   },
   {
