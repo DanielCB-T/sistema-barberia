@@ -5,9 +5,15 @@
 //   <img src="/mi-logo.png" alt="Logo de la barbería" style={{ width: size, height: size }} />
 // colocando el archivo en /public.
 
+import logoImg from '/barbonSinFondoBlanco.png';
+
 function Logo({ size = 40 }) {
   return (
-    <img src="/barbonSinFondoBlanco.png" alt="Logo barberia" style= {{ width: size, height: size + (size/5) }} />
+    <img 
+      src={logoImg} 
+      alt="Logo barberia" 
+      style={{ width: size, height: size + (size / 5) }} 
+    />
   );
 }
 
