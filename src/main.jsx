@@ -8,7 +8,7 @@ import { ToastProvider } from './context/ToastContext'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter basename="/sistema-barberia">
+    <BrowserRouter basename="/t3_act8_eq04">
       <ToastProvider>
         <AuthProvider>
           <App />
