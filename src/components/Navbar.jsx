@@ -72,8 +72,8 @@ function Navbar({ onToggleSidebar }) {
           alt={user?.name || 'Usuario'}
         />
         <span className="topbar__username">{user?.name || user?.username}</span>
-        <button className="topbar__logout" onClick={handleLogout}>
-          Salir <LogOut size={16} />
+        <button className="topbar__logout" onClick={handleLogout} aria-label="Cerrar sesión">
+          <span className="topbar__logout-text">Salir</span> <LogOut size={16} />
         </button>
       </div>
     </header>

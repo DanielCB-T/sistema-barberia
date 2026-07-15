@@ -15,7 +15,7 @@ function BranchesPage() {
       <div className="content__header">
         <h1 className="content__title">Sucursales</h1>
       </div>
-      <div className="card-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+      <div className="card-grid card-grid--wide">
         {branches.map((b) => (
           <BranchCard key={b.id} branch={b} />
         ))}

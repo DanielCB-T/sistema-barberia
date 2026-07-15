@@ -15,7 +15,7 @@ function NewsPage() {
       <div className="content__header">
         <h1 className="content__title">Noticias</h1>
       </div>
-      <div className="card-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+      <div className="card-grid card-grid--news">
         {news.map((n) => (
           <NewsCard key={n.id} item={n} />
         ))}
