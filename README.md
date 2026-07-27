@@ -20,7 +20,7 @@ Este proyecto resuelve esa problemática con una aplicación web full stack que 
 
 ## Test de la api
 
-Repositorio de GitHub: `https://github.com/DanielCB-T/api-sistema-barberia`
+Repositorio de GitHub: https://github.com/DanielCB-T/api-sistema-barberia
 
 ## 1. Arranque rápido
 
