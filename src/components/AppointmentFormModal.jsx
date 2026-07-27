@@ -11,12 +11,13 @@ function toLocalInputValue(iso) {
 }
 
 // mode: 'create' | 'edit'
-function AppointmentFormModal({ mode = 'create', initial, services, branches, onCancel, onSubmit, submitting }) {
+function AppointmentFormModal({ mode = 'create', initial, services, branches, barbers, onCancel, onSubmit, submitting }) {
   const [form, setForm] = useState({
     clientName: initial?.clientName || '',
     clientPhone: initial?.clientPhone || '',
     serviceId: initial?.serviceId || services[0]?.id || '',
     branchId: initial?.branchId || branches[0]?.id || '',
+    barberId: initial?.barberId || barbers[0]?.id || '',
     dateTime: toLocalInputValue(initial?.dateTime) || '',
   });
   const [errors, setErrors] = useState({});
@@ -37,6 +38,7 @@ function AppointmentFormModal({ mode = 'create', initial, services, branches, on
     }
     if (!form.serviceId) errs.serviceId = 'Selecciona un servicio.';
     if (!form.branchId) errs.branchId = 'Selecciona una sucursal.';
+    if (!form.barberId) errs.barberId = 'Selecciona un barbero.';
     if (!form.dateTime) {
       errs.dateTime = 'Selecciona fecha y hora.';
     } else if (new Date(form.dateTime).getTime() < Date.now() - 60000) {
@@ -50,7 +52,8 @@ function AppointmentFormModal({ mode = 'create', initial, services, branches, on
     e.preventDefault();
     if (!validar()) return;
     const service = services.find((s) => s.id === form.serviceId);
-    onSubmit({ ...form, service, dateTime: new Date(form.dateTime).toISOString() });
+    const barber = barbers.find((b) => b.id === form.barberId);
+    onSubmit({ ...form, service, barberName: barber?.name, dateTime: new Date(form.dateTime).toISOString() });
   };
 
   return (
@@ -90,6 +93,18 @@ function AppointmentFormModal({ mode = 'create', initial, services, branches, on
             ))}
           </select>
           {errors.branchId && <div className="field-error">{errors.branchId}</div>}
+        </div>
+
+        <div className="form-field">
+          <label htmlFor="barberId">Barbero</label>
+          <select id="barberId" value={form.barberId} onChange={set('barberId')}>
+            {barbers.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+          {errors.barberId && <div className="field-error">{errors.barberId}</div>}
         </div>
 
         <div className="form-field">

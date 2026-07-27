@@ -57,6 +57,7 @@ function AdminAppointmentsPage() {
   const [data, setData] = useState({ items: [], total: 0 });
   const [services, setServices] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [barbers, setBarbers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -77,6 +78,7 @@ function AdminAppointmentsPage() {
   useEffect(() => {
     catalog.listServices().then(setServices);
     catalog.listBranches().then(setBranches);
+    catalog.listBarbers().then(setBarbers);
   }, []);
 
   // Debounce del buscador de texto -> se refleja en la URL
@@ -282,6 +284,7 @@ function AdminAppointmentsPage() {
             <tr>
               <th>Cliente</th>
               <th>Servicio</th>
+              <th>Barbero</th>
               <th>Fecha y hora</th>
               <th>Teléfono</th>
               <th>Estado</th>
@@ -291,19 +294,19 @@ function AdminAppointmentsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)' }}>
+                <td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)' }}>
                   Cargando citas...
                 </td>
               </tr>
             ) : error ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', color: 'var(--danger)' }}>
+                <td colSpan={7} style={{ textAlign: 'center', color: 'var(--danger)' }}>
                   {error}
                 </td>
               </tr>
             ) : data.items.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)' }}>
+                <td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)' }}>
                   No hay citas que coincidan con los filtros.
                 </td>
               </tr>
@@ -312,6 +315,7 @@ function AdminAppointmentsPage() {
                 <tr key={a.id}>
                   <td>{a.clientName}</td>
                   <td>{a.serviceName}</td>
+                  <td>{a.barberName || '—'}</td>
                   <td>{new Date(a.dateTime).toLocaleString('es-MX')}</td>
                   <td>{a.clientPhone}</td>
                   <td>
@@ -355,12 +359,13 @@ function AdminAppointmentsPage() {
         <PostponeModal appointment={postponeTarget} onClose={() => setPostponeTarget(null)} onDone={load} />
       )}
 
-      {formModal && services.length > 0 && branches.length > 0 && (
+      {formModal && services.length > 0 && branches.length > 0 && barbers.length > 0 && (
         <AppointmentFormModal
           mode={formModal.mode}
           initial={formModal.appointment}
           services={services}
           branches={branches}
+          barbers={barbers}
           submitting={submitting}
           onCancel={() => setFormModal(null)}
           onSubmit={formModal.mode === 'create' ? handleCreate : handleEditSubmit}

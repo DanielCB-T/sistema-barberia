@@ -23,7 +23,10 @@ function AdminAppointmentCard({ appointment }) {
         />
         <div>
           <div className="appt-card__name">{appointment.clientName}</div>
-          <div className="appt-card__service">{appointment.serviceName}</div>
+          <div className="appt-card__service">
+            {appointment.serviceName}
+            {appointment.barberName ? ` · ${appointment.barberName}` : ''}
+          </div>
         </div>
       </div>
       <span className={`badge badge--${appointment.status}`}>{appointment.status.replace('_', ' ')}</span>

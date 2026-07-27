@@ -35,6 +35,7 @@ function AppointmentCard({ appointment, onCancel, onRequestReschedule }) {
         <div className="appt-card__name">{appointment.serviceName}</div>
         <div className="appt-card__service">
           <MapPin size={13} style={{ verticalAlign: -2 }} /> {branchNames[appointment.branchId] || 'Sucursal'}
+          {appointment.barberName ? ` · ${appointment.barberName}` : ''}
         </div>
       </div>
       <span className={`badge badge--${appointment.status}`}>{statusLabels[appointment.status]}</span>

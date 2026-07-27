@@ -17,8 +17,10 @@ function BookingModal({ onClose, onBooked, preselectedService }) {
   const { push } = useToast();
   const [services, setServices] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [barbers, setBarbers] = useState([]);
   const [serviceId, setServiceId] = useState(preselectedService?.id || '');
   const [branchId, setBranchId] = useState('');
+  const [barberId, setBarberId] = useState('');
   const [dateTime, setDateTime] = useState(nextValidDatetimeLocal());
   const [payOnline, setPayOnline] = useState(false);
   const [step, setStep] = useState('form'); // form | paying | done
@@ -38,12 +40,27 @@ function BookingModal({ onClose, onBooked, preselectedService }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // El selector de barbero depende de la sucursal elegida; si cambia la
+  // sucursal, se recarga la lista y se limpia la selección si ya no aplica.
+  useEffect(() => {
+    if (!branchId) return;
+    catalog.listBarbers(branchId).then((list) => {
+      setBarbers(list);
+      setBarberId((current) => (list.some((b) => b.id === current) ? current : list[0]?.id || ''));
+    });
+  }, [branchId]);
+
   const selectedService = services.find((s) => s.id === serviceId);
+  const selectedBarber = barbers.find((b) => b.id === barberId);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     if (!selectedService) return;
+    if (!barberId) {
+      setError('Selecciona un barbero para tu cita.');
+      return;
+    }
 
     setSubmitting(true);
 
@@ -68,6 +85,8 @@ function BookingModal({ onClose, onBooked, preselectedService }) {
       clientPhone: user.phone,
       service: selectedService,
       branchId,
+      barberId,
+      barberName: selectedBarber?.name,
       dateTime: new Date(dateTime).toISOString(),
     });
 
@@ -86,7 +105,8 @@ function BookingModal({ onClose, onBooked, preselectedService }) {
     return (
       <Modal title="¡Cita agendada!" onClose={onClose}>
         <p style={{ color: 'var(--muted)', marginBottom: 12 }}>
-          Registramos tu cita de <strong>{selectedService?.name}</strong> para el{' '}
+          Registramos tu cita de <strong>{selectedService?.name}</strong> con{' '}
+          <strong>{selectedBarber?.name}</strong> para el{' '}
           {new Date(dateTime).toLocaleString('es-MX')}. Te avisaremos por WhatsApp en cuanto la barbería la
           confirme.
         </p>
@@ -132,6 +152,18 @@ function BookingModal({ onClose, onBooked, preselectedService }) {
           <label htmlFor="branch">Sucursal</label>
           <select id="branch" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
             {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-field">
+          <label htmlFor="barber">Barbero</label>
+          <select id="barber" value={barberId} onChange={(e) => setBarberId(e.target.value)}>
+            {barbers.length === 0 && <option value="">No hay barberos disponibles en esta sucursal</option>}
+            {barbers.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}
               </option>

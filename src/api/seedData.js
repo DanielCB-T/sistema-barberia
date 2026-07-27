@@ -146,7 +146,49 @@ export const seedUsers = [
     provider: 'local',
     avatar: 'https://i.pravatar.cc/150?img=33',
   },
+  {
+    id: 'barber-1',
+    name: 'Miguel Ángel Torres',
+    email: 'barbero1@barberia.com',
+    phone: '+52 951 444 5566',
+    birthdate: '1992-03-11',
+    password: 'barbero123',
+    role: 'barber',
+    branchId: 'br-1',
+    provider: 'local',
+    avatar: 'https://i.pravatar.cc/150?img=51',
+  },
+  {
+    id: 'barber-2',
+    name: 'Luis Ramírez',
+    email: 'barbero2@barberia.com',
+    phone: '+52 951 777 8899',
+    birthdate: '1995-09-23',
+    password: 'barbero123',
+    role: 'barber',
+    branchId: 'br-1',
+    provider: 'local',
+    avatar: 'https://i.pravatar.cc/150?img=53',
+  },
+  {
+    id: 'barber-3',
+    name: 'Carlos Jiménez',
+    email: 'barbero3@barberia.com',
+    phone: '+52 951 888 9900',
+    birthdate: '1990-12-02',
+    password: 'barbero123',
+    role: 'barber',
+    branchId: 'br-2',
+    provider: 'local',
+    avatar: 'https://i.pravatar.cc/150?img=59',
+  },
 ];
+
+// Barberos por sucursal, expuestos ya filtrados/derivados de seedUsers para
+// que catalog.listBarbers() no tenga que recorrer toda la tabla de usuarios.
+export const seedBarbers = seedUsers
+  .filter((u) => u.role === 'barber')
+  .map((u) => ({ id: u.id, name: u.name, branchId: u.branchId, avatar: u.avatar }));
 
 function todayPlusHours(hours) {
   const d = new Date();
@@ -164,6 +206,8 @@ export const seedAppointments = [
     serviceName: 'Corte de cabello',
     category: 'Corte',
     branchId: 'br-1',
+    barberId: 'barber-1',
+    barberName: 'Miguel Ángel Torres',
     dateTime: todayPlusHours(30),
     duration: 40,
     status: 'pendiente',
@@ -178,6 +222,8 @@ export const seedAppointments = [
     serviceName: 'Arreglo de barba',
     category: 'Barba',
     branchId: 'br-1',
+    barberId: 'barber-2',
+    barberName: 'Luis Ramírez',
     dateTime: todayPlusHours(2),
     duration: 30,
     status: 'confirmada',

@@ -20,6 +20,7 @@ import {
   seedNews,
   seedUsers,
   seedAppointments,
+  seedBarbers,
 } from './seedData';
 
 const DB_KEY = 'barberia_db_v1';
@@ -27,7 +28,12 @@ const SESSION_KEY = 'barberia_session_v1';
 
 function loadDB() {
   const raw = localStorage.getItem(DB_KEY);
-  if (raw) return JSON.parse(raw);
+  if (raw) {
+    const db = JSON.parse(raw);
+    // Compatibilidad con una base guardada antes de agregar barberos.
+    if (!db.barbers) db.barbers = seedBarbers;
+    return db;
+  }
   const initial = {
     users: seedUsers,
     services: seedServices,
@@ -35,6 +41,7 @@ function loadDB() {
     branches: seedBranches,
     news: seedNews,
     appointments: seedAppointments,
+    barbers: seedBarbers,
     botLog: [],
   };
   localStorage.setItem(DB_KEY, JSON.stringify(initial));
@@ -52,6 +59,21 @@ function delay(data, ms = 450) {
 
 function uid(prefix) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+}
+
+// Traslape de horario, acotado al mismo barbero: dos citas de barberos
+// distintos pueden coincidir en horario sin problema.
+function barberHasConflict(db, { barberId, dateTime, duration, excludeId }) {
+  const start = new Date(dateTime).getTime();
+  const end = start + duration * 60000;
+  return db.appointments.some((a) => {
+    if (excludeId && a.id === excludeId) return false;
+    if (a.status === 'cancelada') return false;
+    if (a.barberId !== barberId) return false;
+    const aStart = new Date(a.dateTime).getTime();
+    const aEnd = aStart + a.duration * 60000;
+    return start < aEnd && end > aStart;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -162,6 +184,12 @@ export const catalog = {
     const db = loadDB();
     return delay(db.news);
   },
+  // Barberos disponibles, opcionalmente filtrados por sucursal.
+  async listBarbers(branchId) {
+    const db = loadDB();
+    const list = branchId ? db.barbers.filter((b) => b.branchId === branchId) : db.barbers;
+    return delay(list);
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -240,11 +268,20 @@ export const appointments = {
     const db = loadDB();
     const idx = db.appointments.findIndex((a) => a.id === id);
     if (idx === -1) return delay({ ok: false, error: 'Cita no encontrada.' });
+    const current = db.appointments[idx];
+    const barberId = changes.barberId ?? current.barberId;
+    const dateTime = changes.dateTime ?? current.dateTime;
+    const duration = changes.duration ?? current.duration;
+    if (
+      barberHasConflict(db, { barberId, dateTime, duration, excludeId: id })
+    ) {
+      return delay({ ok: false, error: 'Ese barbero ya tiene una cita en ese horario, elige otro.' });
+    }
     db.appointments[idx] = {
-      ...db.appointments[idx],
+      ...current,
       ...changes,
       history: [
-        ...db.appointments[idx].history,
+        ...current.history,
         { action: 'editada', at: new Date().toISOString() },
       ],
     };
@@ -263,18 +300,10 @@ export const appointments = {
   },
 
   // Alta manual de una cita hecha directamente por el barbero/administrador
-  async createByAdmin({ clientName, clientPhone, service, branchId, dateTime }) {
+  async createByAdmin({ clientName, clientPhone, service, branchId, barberId, barberName, dateTime }) {
     const db = loadDB();
-    const start = new Date(dateTime).getTime();
-    const end = start + service.duration * 60000;
-    const overlap = db.appointments.some((a) => {
-      if (a.status === 'cancelada') return false;
-      const aStart = new Date(a.dateTime).getTime();
-      const aEnd = aStart + a.duration * 60000;
-      return start < aEnd && end > aStart;
-    });
-    if (overlap) {
-      return delay({ ok: false, error: 'Ese horario ya está ocupado, elige otro.' });
+    if (barberHasConflict(db, { barberId, dateTime, duration: service.duration })) {
+      return delay({ ok: false, error: 'Ese barbero ya tiene una cita en ese horario, elige otro.' });
     }
     const newApt = {
       id: uid('apt'),
@@ -285,6 +314,8 @@ export const appointments = {
       serviceName: service.name,
       category: service.category,
       branchId,
+      barberId,
+      barberName,
       dateTime,
       duration: service.duration,
       status: 'pendiente',
@@ -295,19 +326,10 @@ export const appointments = {
     return delay({ ok: true, appointment: newApt });
   },
 
-  async create({ clientId, clientName, clientPhone, service, branchId, dateTime }) {
+  async create({ clientId, clientName, clientPhone, service, branchId, barberId, barberName, dateTime }) {
     const db = loadDB();
-    // Validación simple de traslape de horario
-    const start = new Date(dateTime).getTime();
-    const end = start + service.duration * 60000;
-    const overlap = db.appointments.some((a) => {
-      if (a.status === 'cancelada') return false;
-      const aStart = new Date(a.dateTime).getTime();
-      const aEnd = aStart + a.duration * 60000;
-      return start < aEnd && end > aStart;
-    });
-    if (overlap) {
-      return delay({ ok: false, error: 'Ese horario ya está ocupado, elige otro.' });
+    if (barberHasConflict(db, { barberId, dateTime, duration: service.duration })) {
+      return delay({ ok: false, error: 'Ese barbero ya tiene una cita en ese horario, elige otro.' });
     }
     const newApt = {
       id: uid('apt'),
@@ -318,6 +340,8 @@ export const appointments = {
       serviceName: service.name,
       category: service.category,
       branchId,
+      barberId,
+      barberName,
       dateTime,
       duration: service.duration,
       status: 'pendiente',
