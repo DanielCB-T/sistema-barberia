@@ -16,4 +16,4 @@ Este proyecto resuelve esa problemática con una aplicación web full stack que 
 - Al sistema en general: notificar por correo, SMS y WhatsApp de forma automática ante cada acción relevante (cita creada, confirmada o reprogramada), evitando la gestión manual y los errores humanos que esto conlleva.
 
 ## Diagrama entidad relacion del sistema
-![Sistema barberia diagrama ER](diagramaER.drawio.svg)   
+![Sistema barberia diagrama ER](diagramaER-sistema-barberia.drawio.svg)   
