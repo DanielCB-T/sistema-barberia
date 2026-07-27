@@ -14,3 +14,6 @@ Este proyecto resuelve esa problemática con una aplicación web full stack que 
 - A los **clientes**: consultar servicios, productos, sucursales y noticias, agendar citas en línea, dar seguimiento a sus propias citas y recibir confirmaciones automáticas.
 - A los **administradores/barberos**: gestionar el calendario de citas con filtros y paginación, aceptar, posponer o cancelar citas, y llevar el historial de cada cliente.
 - Al sistema en general: notificar por correo, SMS y WhatsApp de forma automática ante cada acción relevante (cita creada, confirmada o reprogramada), evitando la gestión manual y los errores humanos que esto conlleva.
+
+## Diagrama entidad relacion del sistema
+![Sistema barberia diagrama ER](diagramaER.drawio.svg)   
