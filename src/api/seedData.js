@@ -87,6 +87,8 @@ export const seedBranches = [
     address: 'Av. Independencia 501, Centro, Oaxaca de Juárez',
     phone: '+52 951 123 4567',
     hours: 'Lun a Sáb, 10:00 - 20:00',
+    openingTime: '10:00',
+    closingTime: '20:00',
     image: 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=700&q=80',
   },
   {
@@ -95,6 +97,8 @@ export const seedBranches = [
     address: 'Calz. Madero 220, Reforma, Oaxaca de Juárez',
     phone: '+52 951 765 4321',
     hours: 'Lun a Dom, 09:00 - 21:00',
+    openingTime: '09:00',
+    closingTime: '21:00',
     image: 'https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=700&q=80',
   },
 ];

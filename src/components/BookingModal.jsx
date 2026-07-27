@@ -4,6 +4,7 @@ import Modal from './Modal';
 import { catalog, appointments, payments } from '../api/mockApi';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { isWithinBusinessHours, businessHoursMessage } from '../utils/businessHours';
 
 function nextValidDatetimeLocal() {
   const d = new Date(Date.now() + 3 * 3600000);
@@ -52,6 +53,7 @@ function BookingModal({ onClose, onBooked, preselectedService }) {
 
   const selectedService = services.find((s) => s.id === serviceId);
   const selectedBarber = barbers.find((b) => b.id === barberId);
+  const selectedBranch = branches.find((b) => b.id === branchId);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -59,6 +61,10 @@ function BookingModal({ onClose, onBooked, preselectedService }) {
     if (!selectedService) return;
     if (!barberId) {
       setError('Selecciona un barbero para tu cita.');
+      return;
+    }
+    if (selectedBranch && !isWithinBusinessHours(selectedBranch, dateTime, selectedService.duration)) {
+      setError(businessHoursMessage(selectedBranch));
       return;
     }
 

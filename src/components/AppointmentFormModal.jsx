@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import Modal from './Modal';
 import { soloLetras, validarTelefono, validarLongitud } from '../utils/utileria';
+import { isWithinBusinessHours, businessHoursMessage } from '../utils/businessHours';
 
 function toLocalInputValue(iso) {
   if (!iso) return '';
@@ -43,6 +44,12 @@ function AppointmentFormModal({ mode = 'create', initial, services, branches, ba
       errs.dateTime = 'Selecciona fecha y hora.';
     } else if (new Date(form.dateTime).getTime() < Date.now() - 60000) {
       errs.dateTime = 'La fecha y hora no puede ser en el pasado.';
+    } else {
+      const branch = branches.find((b) => b.id === form.branchId);
+      const service = services.find((s) => s.id === form.serviceId);
+      if (branch && service && !isWithinBusinessHours(branch, form.dateTime, service.duration)) {
+        errs.dateTime = businessHoursMessage(branch);
+      }
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;

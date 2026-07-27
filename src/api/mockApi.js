@@ -22,6 +22,7 @@ import {
   seedAppointments,
   seedBarbers,
 } from './seedData';
+import { isWithinBusinessHours, businessHoursMessage } from '../utils/businessHours';
 
 const DB_KEY = 'barberia_db_v1';
 const SESSION_KEY = 'barberia_session_v1';
@@ -272,6 +273,11 @@ export const appointments = {
     const barberId = changes.barberId ?? current.barberId;
     const dateTime = changes.dateTime ?? current.dateTime;
     const duration = changes.duration ?? current.duration;
+    const branchId = changes.branchId ?? current.branchId;
+    const branch = db.branches.find((b) => b.id === branchId);
+    if (branch && !isWithinBusinessHours(branch, dateTime, duration)) {
+      return delay({ ok: false, error: businessHoursMessage(branch) });
+    }
     if (
       barberHasConflict(db, { barberId, dateTime, duration, excludeId: id })
     ) {
@@ -302,6 +308,10 @@ export const appointments = {
   // Alta manual de una cita hecha directamente por el barbero/administrador
   async createByAdmin({ clientName, clientPhone, service, branchId, barberId, barberName, dateTime }) {
     const db = loadDB();
+    const branch = db.branches.find((b) => b.id === branchId);
+    if (branch && !isWithinBusinessHours(branch, dateTime, service.duration)) {
+      return delay({ ok: false, error: businessHoursMessage(branch) });
+    }
     if (barberHasConflict(db, { barberId, dateTime, duration: service.duration })) {
       return delay({ ok: false, error: 'Ese barbero ya tiene una cita en ese horario, elige otro.' });
     }
@@ -328,6 +338,10 @@ export const appointments = {
 
   async create({ clientId, clientName, clientPhone, service, branchId, barberId, barberName, dateTime }) {
     const db = loadDB();
+    const branch = db.branches.find((b) => b.id === branchId);
+    if (branch && !isWithinBusinessHours(branch, dateTime, service.duration)) {
+      return delay({ ok: false, error: businessHoursMessage(branch) });
+    }
     if (barberHasConflict(db, { barberId, dateTime, duration: service.duration })) {
       return delay({ ok: false, error: 'Ese barbero ya tiene una cita en ese horario, elige otro.' });
     }
