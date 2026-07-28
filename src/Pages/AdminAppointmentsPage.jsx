@@ -7,7 +7,7 @@
 // después se refleja el cambio en el estado local para que la tabla se
 // actualice visualmente.
 import { useCallback, useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { CheckCircle2, CalendarClock, Pencil, Trash2, Plus, Search } from 'lucide-react';
 import { appointments as appointmentsApi, catalog } from '../api/mockApi';
 import { crearRegistroReal, editarRegistroReal, eliminarRegistroReal } from '../api/dummyPractice';
@@ -313,7 +313,9 @@ function AdminAppointmentsPage() {
             ) : (
               data.items.map((a) => (
                 <tr key={a.id}>
-                  <td>{a.clientName}</td>
+                  <td>
+                    <Link to={`/admin/clientes/${a.clientId}`}>{a.clientName}</Link>
+                  </td>
                   <td>{a.serviceName}</td>
                   <td>{a.barberName || '—'}</td>
                   <td>{new Date(a.dateTime).toLocaleString('es-MX')}</td>

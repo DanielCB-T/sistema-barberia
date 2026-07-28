@@ -11,6 +11,7 @@ import MyAppointmentsPage from './Pages/MyAppointmentsPage';
 import CartPage from './Pages/CartPage';
 import AdminPage from './Pages/AdminPage';
 import AdminAppointmentsPage from './Pages/AdminAppointmentsPage';
+import AdminClientPage from './Pages/AdminClientPage';
 import SettingsPage from './Pages/SettingsPage';
 import AppLayout from './components/AppLayout';
 import ClientSidebar from './components/ClientSidebar';
@@ -51,6 +52,7 @@ function App() {
       >
         <Route index element={<AdminPage />} />
         <Route path="gestion-citas" element={<AdminAppointmentsPage />} />
+        <Route path="clientes/:id" element={<AdminClientPage />} />
         <Route path="ajustes" element={<SettingsPage />} />
       </Route>
 

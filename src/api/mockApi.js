@@ -155,11 +155,24 @@ export const auth = {
     return raw ? JSON.parse(raw) : null;
   },
 
+  // changes puede incluir { currentPassword, password } para cambiar la
+  // contraseña; en ese caso se valida que currentPassword coincida antes
+  // de reemplazarla. (En el backend real la contraseña siempre va
+  // hasheada; aquí es un mock local, nunca se muestra en ninguna vista.)
   async updateProfile(userId, changes) {
     const db = loadDB();
     const idx = db.users.findIndex((u) => u.id === userId);
     if (idx === -1) return delay({ ok: false, error: 'Usuario no encontrado.' });
-    db.users[idx] = { ...db.users[idx], ...changes };
+
+    const { currentPassword, password, ...rest } = changes;
+    if (password) {
+      if (db.users[idx].password !== currentPassword) {
+        return delay({ ok: false, error: 'La contraseña actual no es correcta.' });
+      }
+      rest.password = password;
+    }
+
+    db.users[idx] = { ...db.users[idx], ...rest };
     saveDB(db);
     localStorage.setItem(SESSION_KEY, JSON.stringify(db.users[idx]));
     return delay({ ok: true, user: db.users[idx] });
@@ -596,5 +609,46 @@ export const orders = {
     c.paidAt = new Date().toISOString();
     saveDB(db);
     return delay({ ok: true, order: c });
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Ficha de cliente (panel de administración)
+// ---------------------------------------------------------------------------
+export const clients = {
+  // Devuelve los datos del cliente (si está registrado) y todo su historial
+  // de citas. Un walk-in creado por el administrador no tiene cuenta de
+  // usuario, así que se arma una ficha mínima a partir de sus citas.
+  async getHistory(clientId) {
+    const db = loadDB();
+    const clientAppointments = db.appointments
+      .filter((a) => a.clientId === clientId)
+      .sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
+
+    const registered = db.users.find((u) => u.id === clientId && u.role === 'client');
+
+    if (!registered && clientAppointments.length === 0) {
+      return delay(null);
+    }
+
+    const client = registered
+      ? {
+          id: registered.id,
+          name: registered.name,
+          email: registered.email,
+          phone: registered.phone,
+          avatar: registered.avatar,
+          registered: true,
+        }
+      : {
+          id: clientId,
+          name: clientAppointments[0].clientName,
+          email: null,
+          phone: clientAppointments[0].clientPhone,
+          avatar: null,
+          registered: false,
+        };
+
+    return delay({ client, appointments: clientAppointments });
   },
 };
