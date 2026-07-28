@@ -94,6 +94,7 @@ function BookingModal({ onClose, onBooked, preselectedService }) {
       barberId,
       barberName: selectedBarber?.name,
       dateTime: new Date(dateTime).toISOString(),
+      payOnline,
     });
 
     setSubmitting(false);
