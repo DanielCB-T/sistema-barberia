@@ -5,7 +5,7 @@
 // barbero (aceptar / posponer). Todas las acciones llaman directamente a la
 // API real de Laravel a través de src/api/mockApi.js.
 import { useCallback, useEffect, useState } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { CheckCircle2, CalendarClock, Pencil, Trash2, Plus, Search } from 'lucide-react';
 import { appointments as appointmentsApi, catalog } from '../api/mockApi';
 import { useToast } from '../context/ToastContext';
@@ -290,9 +290,7 @@ function AdminAppointmentsPage() {
             ) : (
               data.items.map((a) => (
                 <tr key={a.id}>
-                  <td>
-                    <Link to={`/admin/clientes/${a.clientId}`}>{a.clientName}</Link>
-                  </td>
+                  <td>{a.clientName}</td>
                   <td>{a.serviceName}</td>
                   <td>{a.barberName || '—'}</td>
                   <td>{new Date(a.dateTime).toLocaleString('es-MX')}</td>

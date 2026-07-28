@@ -1,5 +1,4 @@
 // src/components/AdminAppointmentCard.jsx
-import { Link } from 'react-router-dom';
 import { Clock } from 'lucide-react';
 
 function formatRange(dateTime, duration) {
@@ -16,7 +15,7 @@ function AdminAppointmentCard({ appointment }) {
         <Clock size={16} />
         {formatRange(appointment.dateTime, appointment.duration)}
       </div>
-      <Link to={`/admin/clientes/${appointment.clientId}`} className="appt-card__person" style={{ textDecoration: 'none', color: 'inherit' }}>
+      <div className="appt-card__person">
         <img
           className="appt-card__avatar"
           src={`https://i.pravatar.cc/100?u=${appointment.clientId}`}
@@ -29,7 +28,7 @@ function AdminAppointmentCard({ appointment }) {
             {appointment.barberName ? ` · ${appointment.barberName}` : ''}
           </div>
         </div>
-      </Link>
+      </div>
       <span className={`badge badge--${appointment.status}`}>{appointment.status.replace('_', ' ')}</span>
     </div>
   );

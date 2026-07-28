@@ -1,10 +1,15 @@
 // src/components/AdminSidebar.jsx
 import { NavLink } from 'react-router-dom';
-import { Home, CalendarCheck, Settings } from 'lucide-react';
+import { Home, CalendarCheck, Scissors, ShoppingBag, MapPin, Newspaper, Users, Settings } from 'lucide-react';
 
 const links = [
   { to: '/admin', label: 'Inicio', icon: Home, end: true },
   { to: '/admin/gestion-citas', label: 'Gestión de citas', icon: CalendarCheck },
+  { to: '/admin/servicios', label: 'Servicios', icon: Scissors },
+  { to: '/admin/productos', label: 'Productos', icon: ShoppingBag },
+  { to: '/admin/sucursales', label: 'Sucursales', icon: MapPin },
+  { to: '/admin/noticias', label: 'Noticias', icon: Newspaper },
+  { to: '/admin/barberos', label: 'Barberos', icon: Users },
 ];
 
 function AdminSidebar({ collapsed }) {
