@@ -31,8 +31,9 @@ function loadDB() {
   const raw = localStorage.getItem(DB_KEY);
   if (raw) {
     const db = JSON.parse(raw);
-    // Compatibilidad con una base guardada antes de agregar barberos.
+    // Compatibilidad con una base guardada antes de agregar barberos/órdenes.
     if (!db.barbers) db.barbers = seedBarbers;
+    if (!db.orders) db.orders = [];
     return db;
   }
   const initial = {
@@ -43,6 +44,7 @@ function loadDB() {
     news: seedNews,
     appointments: seedAppointments,
     barbers: seedBarbers,
+    orders: [],
     botLog: [],
   };
   localStorage.setItem(DB_KEY, JSON.stringify(initial));
@@ -467,5 +469,132 @@ export const payments = {
         method: 'Tarjeta terminada en 4242',
       },
     };
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Carrito y órdenes
+// ---------------------------------------------------------------------------
+//
+// El carrito no es una tabla aparte: es la orden (status 'carrito') del
+// cliente todavía sin confirmar. Al hacer checkout esa misma orden cambia
+// de estado y deja de ser el carrito activo (igual que en la API real).
+
+function recalcOrderTotal(order) {
+  order.total = order.items.reduce((sum, it) => sum + it.quantity * it.unitPrice, 0);
+}
+
+function getOrCreateCart(db, clientId) {
+  let cart = db.orders.find((o) => o.clientId === clientId && o.status === 'carrito');
+  if (!cart) {
+    cart = { id: uid('order'), clientId, items: [], total: 0, status: 'carrito', paymentMethod: null, createdAt: new Date().toISOString() };
+    db.orders.push(cart);
+  }
+  return cart;
+}
+
+export const cart = {
+  async get(clientId) {
+    const db = loadDB();
+    const c = getOrCreateCart(db, clientId);
+    saveDB(db);
+    return delay(c);
+  },
+
+  // Si el producto ya está en el carrito, suma la cantidad al item existente.
+  async addItem(clientId, productId, quantity = 1) {
+    const db = loadDB();
+    const product = db.products.find((p) => p.id === productId);
+    if (!product) return delay({ ok: false, error: 'Producto no encontrado.' });
+
+    const c = getOrCreateCart(db, clientId);
+    const existing = c.items.find((it) => it.productId === productId);
+    const requestedTotal = quantity + (existing?.quantity || 0);
+
+    if (requestedTotal > product.stock) {
+      return delay({ ok: false, error: `Solo hay ${product.stock} unidades disponibles de "${product.name}".` });
+    }
+
+    if (existing) {
+      existing.quantity = requestedTotal;
+    } else {
+      c.items.push({
+        id: uid('item'),
+        productId: product.id,
+        productName: product.name,
+        productImage: product.image,
+        unitPrice: product.price,
+        quantity,
+      });
+    }
+    recalcOrderTotal(c);
+    saveDB(db);
+    return delay({ ok: true, cart: c });
+  },
+
+  async updateItem(clientId, itemId, quantity) {
+    const db = loadDB();
+    const c = getOrCreateCart(db, clientId);
+    const item = c.items.find((it) => it.id === itemId);
+    if (!item) return delay({ ok: false, error: 'El producto ya no está en el carrito.' });
+
+    const product = db.products.find((p) => p.id === item.productId);
+    if (product && quantity > product.stock) {
+      return delay({ ok: false, error: `Solo hay ${product.stock} unidades disponibles de "${item.productName}".` });
+    }
+
+    item.quantity = quantity;
+    recalcOrderTotal(c);
+    saveDB(db);
+    return delay({ ok: true, cart: c });
+  },
+
+  async removeItem(clientId, itemId) {
+    const db = loadDB();
+    const c = getOrCreateCart(db, clientId);
+    c.items = c.items.filter((it) => it.id !== itemId);
+    recalcOrderTotal(c);
+    saveDB(db);
+    return delay({ ok: true, cart: c });
+  },
+};
+
+export const orders = {
+  async listForClient(clientId) {
+    const db = loadDB();
+    return delay(
+      db.orders
+        .filter((o) => o.clientId === clientId && o.status !== 'carrito')
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    );
+  },
+
+  // Convierte el carrito activo del cliente en una orden generada: valida
+  // existencias, descuenta stock y cambia el estado de "carrito" a "pagado".
+  async checkout(clientId, paymentMethod) {
+    const db = loadDB();
+    const c = getOrCreateCart(db, clientId);
+
+    if (c.items.length === 0) {
+      return delay({ ok: false, error: 'Tu carrito está vacío, agrega productos antes de generar la orden.' });
+    }
+
+    for (const item of c.items) {
+      const product = db.products.find((p) => p.id === item.productId);
+      if (!product || item.quantity > product.stock) {
+        return delay({ ok: false, error: `Ya no hay suficientes existencias de "${item.productName}".` });
+      }
+    }
+
+    c.items.forEach((item) => {
+      const product = db.products.find((p) => p.id === item.productId);
+      product.stock -= item.quantity;
+    });
+
+    c.status = 'pagado';
+    c.paymentMethod = paymentMethod;
+    c.paidAt = new Date().toISOString();
+    saveDB(db);
+    return delay({ ok: true, order: c });
   },
 };

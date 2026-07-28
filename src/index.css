@@ -475,6 +475,32 @@ input, select, textarea {
   font-size: 0.88rem; color: var(--success);
 }
 
+/* ---------- Carrito ---------- */
+.qty-control { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.qty-control__btn {
+  width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--border);
+  background: white; display: flex; align-items: center; justify-content: center; color: var(--navy-900);
+}
+.qty-control__btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.qty-control__value { min-width: 20px; text-align: center; font-weight: 700; }
+
+.cart-row {
+  display: flex; align-items: center; gap: 14px; background: white; border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm); padding: 14px 16px; margin-bottom: 12px;
+}
+.cart-row__image { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; flex-shrink: 0; }
+.cart-row__body { flex: 1; min-width: 0; }
+.cart-row__name { font-weight: 700; font-size: 0.94rem; }
+.cart-row__price { color: var(--muted); font-size: 0.82rem; }
+.cart-row__subtotal { font-weight: 800; color: var(--rust-600); min-width: 70px; text-align: right; }
+
+.cart-summary {
+  background: white; border-radius: var(--radius-md); box-shadow: var(--shadow-sm);
+  padding: 20px 22px; margin-top: 8px;
+}
+.cart-summary__total { display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: 800; margin-bottom: 16px; }
+.payment-method-pick { display: flex; gap: 10px; margin-bottom: 18px; }
+
 /* ---------- Table (admin gestión de citas) ---------- */
 .table-wrap { background: white; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); overflow-x: auto; }
 table.data-table { width: 100%; border-collapse: collapse; min-width: 720px; }

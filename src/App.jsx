@@ -8,6 +8,7 @@ import ProductsPage from './Pages/ProductsPage';
 import BranchesPage from './Pages/BranchesPage';
 import NewsPage from './Pages/NewsPage';
 import MyAppointmentsPage from './Pages/MyAppointmentsPage';
+import CartPage from './Pages/CartPage';
 import AdminPage from './Pages/AdminPage';
 import AdminAppointmentsPage from './Pages/AdminAppointmentsPage';
 import SettingsPage from './Pages/SettingsPage';
@@ -34,6 +35,7 @@ function App() {
         <Route path="mis-citas" element={<MyAppointmentsPage />} />
         <Route path="servicios" element={<ServicesPage />} />
         <Route path="productos" element={<ProductsPage />} />
+        <Route path="carrito" element={<CartPage />} />
         <Route path="sucursales" element={<BranchesPage />} />
         <Route path="noticias" element={<NewsPage />} />
         <Route path="ajustes" element={<SettingsPage />} />

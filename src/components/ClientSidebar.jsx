@@ -1,6 +1,6 @@
 // src/components/ClientSidebar.jsx
 import { NavLink } from 'react-router-dom';
-import { Home, Scissors, ShoppingBag, MapPin, Newspaper, CalendarClock, Settings, LogOut } from 'lucide-react';
+import { Home, Scissors, ShoppingBag, ShoppingCart, MapPin, Newspaper, CalendarClock, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,6 +9,7 @@ const links = [
   { to: '/dashboard/mis-citas', label: 'Mis citas', icon: CalendarClock },
   { to: '/dashboard/servicios', label: 'Servicios', icon: Scissors },
   { to: '/dashboard/productos', label: 'Productos', icon: ShoppingBag },
+  { to: '/dashboard/carrito', label: 'Carrito', icon: ShoppingCart },
   { to: '/dashboard/sucursales', label: 'Sucursales', icon: MapPin },
   { to: '/dashboard/noticias', label: 'Noticias', icon: Newspaper },
 ];

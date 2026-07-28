@@ -12,8 +12,10 @@ function ProductsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
+  const loadProducts = () => catalog.listProducts().then(setProducts);
+
   useEffect(() => {
-    catalog.listProducts().then(setProducts);
+    loadProducts();
   }, []);
 
   const filtered = useMemo(
@@ -38,7 +40,7 @@ function ProductsPage() {
       ) : (
         <div className="card-grid">
           {pageItems.map((p) => (
-            <ProductCard key={p.id} product={p} />
+            <ProductCard key={p.id} product={p} onAdded={loadProducts} />
           ))}
         </div>
       )}
