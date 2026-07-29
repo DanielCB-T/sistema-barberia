@@ -1,7 +1,6 @@
 // src/components/ServiceFormModal.jsx
 import { useState } from 'react';
 import Modal from './Modal';
-import ImageUploader from './ImageUploader';
 
 const CATEGORIES = ['Corte', 'Barba', 'Limpieza', 'Degradado', 'Color'];
 
@@ -12,8 +11,8 @@ function ServiceFormModal({ mode, initial, submitting, onCancel, onSubmit }) {
     price: initial?.price ?? '',
     duration: initial?.duration ?? '',
     description: initial?.description || '',
+    image: initial?.image || '',
   });
-  const [imageFile, setImageFile] = useState(null);
   const [errors, setErrors] = useState({});
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -34,7 +33,6 @@ function ServiceFormModal({ mode, initial, submitting, onCancel, onSubmit }) {
       ...form,
       price: Number(form.price),
       duration: Number(form.duration),
-      imageFile,
     });
   };
 
@@ -72,7 +70,10 @@ function ServiceFormModal({ mode, initial, submitting, onCancel, onSubmit }) {
           <label htmlFor="description">Descripción</label>
           <textarea id="description" value={form.description} onChange={set('description')} />
         </div>
-        <ImageUploader label="Imagen del servicio" currentUrl={initial?.image} onChange={setImageFile} />
+        <div className="form-field">
+          <label htmlFor="image">URL de imagen</label>
+          <input id="image" value={form.image} onChange={set('image')} placeholder="https://..." />
+        </div>
         <div className="modal__footer">
           <button type="button" className="btn btn--ghost" onClick={onCancel}>
             Cancelar

@@ -61,46 +61,6 @@ async function request(method, path, { body, params } = {}) {
     };
   }
 
-  return parseResponse(response);
-}
-
-// Petición multipart/form-data (para subir archivos: imágenes, avatares).
-// method solo puede ser 'POST' o 'PUT'; para 'PUT' se manda como POST real
-// con el campo _method=PUT (method spoofing de Laravel), porque PHP no
-// llena $_FILES en peticiones PUT reales con multipart.
-async function requestForm(method, path, formData) {
-  const token = getToken();
-
-  if (method === 'PUT') {
-    formData.append('_method', 'PUT');
-  }
-
-  let response;
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        // OJO: no se pone 'Content-Type' a propósito; el navegador arma el
-        // boundary del multipart automáticamente si lo dejamos vacío.
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: formData,
-    });
-  } catch (err) {
-    return {
-      ok: false,
-      status: 0,
-      data: null,
-      message: 'No se pudo conectar con el servidor. Verifica tu conexión a internet.',
-      errors: null,
-    };
-  }
-
-  return parseResponse(response);
-}
-
-async function parseResponse(response) {
   let payload = null;
   try {
     payload = await response.json();
@@ -137,27 +97,7 @@ export const http = {
   put: (path, body) => request('PUT', path, { body }),
   patch: (path, body) => request('PATCH', path, { body }),
   delete: (path) => request('DELETE', path),
-  // Multipart (subida de archivos): postForm para crear, putForm para editar.
-  postForm: (path, formData) => requestForm('POST', path, formData),
-  putForm: (path, formData) => requestForm('PUT', path, formData),
 };
-
-// Arma un FormData a partir de un objeto plano, agregando solo los campos
-// definidos (undefined se omite). Los valores booleanos se mandan como
-// '1'/'0' porque FormData solo entiende strings/Blob.
-export function toFormData(fields) {
-  const formData = new FormData();
-  Object.entries(fields).forEach(([key, value]) => {
-    if (value === undefined) return;
-    if (value === null) return;
-    if (typeof value === 'boolean') {
-      formData.append(key, value ? '1' : '0');
-      return;
-    }
-    formData.append(key, value);
-  });
-  return formData;
-}
 
 // Toma el primer mensaje de error de validación de Laravel (422), si lo hay.
 export function firstError(res, fallback) {

@@ -6,21 +6,19 @@
 // componente que lo usa), pero ahora cada función habla con la API real
 // a través de src/api/httpClient.js.
 //
-// Las imágenes (servicios, productos, sucursales, noticias, barberos,
-// avatar) se suben como archivo real (multipart/form-data), nunca como URL
-// de texto; el backend las guarda en storage/app/public/... y regresa la
-// URL completa lista para usarse en un <img>.
-//
 // Limitaciones conocidas (documentadas también en el README de la API):
 //  - loginWithGoogle(): la API real todavía no tiene endpoint de OAuth de
 //    Google, así que este botón muestra un aviso en vez de iniciar sesión.
 //  - payments.createCheckout(): la pasarela de pago real (Stripe/Mercado
 //    Pago) todavía no está conectada; se simula localmente.
+//  - appointments.createByAdmin(): crear una cita "de mostrador" sin cuenta
+//    de cliente no está soportado por el modelo de datos real (toda cita
+//    requiere un client_id). Se muestra un aviso explicando la limitación.
 //  - appointments.listAll(): los filtros status/branch/fecha se mandan al
 //    servidor (paginación real); category/search/onlyUpcoming se resuelven
 //    del lado del cliente porque la API aún no los soporta como parámetros.
 
-import { http, firstError, getToken, setToken, toFormData } from './httpClient';
+import { http, firstError, getToken, setToken } from './httpClient';
 
 const SESSION_KEY = 'barberia_session_v1';
 
@@ -60,8 +58,6 @@ function mapBranch(b) {
     phone: b.phone,
     openingTime,
     closingTime,
-    // La API no guarda un rango de días (ej. "Lun a Sáb"), solo horas; se
-    // arma un texto genérico para no dejar la tarjeta de sucursal en blanco.
     hours: `Todos los días, ${openingTime} - ${closingTime}`,
     image: b.image,
   };
@@ -102,15 +98,12 @@ function mapBarber(b) {
   return {
     id: b.id,
     name: b.name,
-    email: b.email,
-    phone: b.phone || '',
     avatar: b.avatar,
     branchId: b.branch_id ?? null,
     branchName: b.branch?.name || null,
   };
 }
 
-// "2026-08-15 11:00" (como lo regresa Laravel) -> string parseable por Date().
 function toIsoLike(dateTime) {
   if (!dateTime) return dateTime;
   return dateTime.includes('T') ? dateTime : `${dateTime.replace(' ', 'T')}:00`;
@@ -169,17 +162,15 @@ function mapOrder(o) {
 // ---------------------------------------------------------------------------
 
 export const auth = {
-  async register({ name, email, phone, birthdate, password, confirmPassword, avatarFile }) {
-    const formData = toFormData({
+  async register({ name, email, phone, birthdate, password, confirmPassword }) {
+    const res = await http.post('/register', {
       name,
       email,
       phone,
       birthdate,
       password,
       password_confirmation: confirmPassword,
-      avatar: avatarFile || undefined,
     });
-    const res = await http.postForm('/register', formData);
     if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo crear la cuenta.') };
     setToken(res.data.token);
     const user = mapUser(res.data.user?.data ?? res.data.user);
@@ -196,7 +187,6 @@ export const auth = {
     return { ok: true, user };
   },
 
-  // La API real todavía no expone un endpoint de OAuth de Google.
   async loginWithGoogle() {
     return {
       ok: false,
@@ -216,9 +206,6 @@ export const auth = {
     return raw ? JSON.parse(raw) : null;
   },
 
-  // Valida el token guardado contra el servidor (GET /api/user). Se usa al
-  // arrancar la app para no confiar ciegamente en lo que quedó en caché:
-  // si el token ya expiró o fue revocado, se cierra la sesión local.
   async fetchCurrentUser() {
     if (!getToken()) return { ok: false };
     const res = await http.get('/user');
@@ -233,20 +220,17 @@ export const auth = {
   },
 
   async updateProfile(_userId, changes) {
-    const formData = toFormData({
+    const res = await http.put('/profile', {
       name: changes.name,
       phone: changes.phone,
       birthdate: changes.birthdate || null,
-      avatar: changes.avatarFile || undefined,
     });
-    const res = await http.putForm('/profile', formData);
     if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo actualizar tu perfil.') };
     const user = mapUser(res.data.data ?? res.data);
     cacheUser(user);
     return { ok: true, user };
   },
 
-  // Cambiar contraseña estando ya autenticado (pantalla de Ajustes).
   async changePassword({ currentPassword, password, confirmPassword }) {
     const res = await http.post('/change-password', {
       current_password: currentPassword,
@@ -269,28 +253,26 @@ export const catalog = {
     return (res.data.data || []).map(mapService);
   },
   async createService(data) {
-    const formData = toFormData({
+    const res = await http.post('/services', {
       name: data.name,
       category: data.category,
       price: data.price,
       duration: data.duration,
       description: data.description,
-      image: data.imageFile || undefined,
+      image: data.image,
     });
-    const res = await http.postForm('/services', formData);
     if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo crear el servicio.') };
     return { ok: true, item: mapService(res.data.data) };
   },
   async updateService(id, data) {
-    const formData = toFormData({
+    const res = await http.put(`/services/${id}`, {
       name: data.name,
       category: data.category,
       price: data.price,
       duration: data.duration,
       description: data.description,
-      image: data.imageFile || undefined,
+      image: data.image,
     });
-    const res = await http.putForm(`/services/${id}`, formData);
     if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo actualizar el servicio.') };
     return { ok: true, item: mapService(res.data.data) };
   },
@@ -306,26 +288,24 @@ export const catalog = {
     return (res.data.data || []).map(mapProduct);
   },
   async createProduct(data) {
-    const formData = toFormData({
+    const res = await http.post('/products', {
       name: data.name,
       price: data.price,
       stock: data.stock,
       description: data.description,
-      image: data.imageFile || undefined,
+      image: data.image,
     });
-    const res = await http.postForm('/products', formData);
     if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo crear el producto.') };
     return { ok: true, item: mapProduct(res.data.data) };
   },
   async updateProduct(id, data) {
-    const formData = toFormData({
+    const res = await http.put(`/products/${id}`, {
       name: data.name,
       price: data.price,
       stock: data.stock,
       description: data.description,
-      image: data.imageFile || undefined,
+      image: data.image,
     });
-    const res = await http.putForm(`/products/${id}`, formData);
     if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo actualizar el producto.') };
     return { ok: true, item: mapProduct(res.data.data) };
   },
@@ -341,28 +321,26 @@ export const catalog = {
     return (res.data.data || []).map(mapBranch);
   },
   async createBranch(data) {
-    const formData = toFormData({
+    const res = await http.post('/branches', {
       name: data.name,
       address: data.address,
       phone: data.phone,
       opening_time: data.openingTime,
       closing_time: data.closingTime,
-      image: data.imageFile || undefined,
+      image: data.image,
     });
-    const res = await http.postForm('/branches', formData);
     if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo crear la sucursal.') };
     return { ok: true, item: mapBranch(res.data.data) };
   },
   async updateBranch(id, data) {
-    const formData = toFormData({
+    const res = await http.put(`/branches/${id}`, {
       name: data.name,
       address: data.address,
       phone: data.phone,
       opening_time: data.openingTime,
       closing_time: data.closingTime,
-      image: data.imageFile || undefined,
+      image: data.image,
     });
-    const res = await http.putForm(`/branches/${id}`, formData);
     if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo actualizar la sucursal.') };
     return { ok: true, item: mapBranch(res.data.data) };
   },
@@ -378,24 +356,22 @@ export const catalog = {
     return (res.data.data || []).map(mapNews);
   },
   async createNews(data) {
-    const formData = toFormData({
+    const res = await http.post('/news', {
       title: data.title,
       summary: data.summary,
       date: data.date,
-      image: data.imageFile || undefined,
+      image: data.image,
     });
-    const res = await http.postForm('/news', formData);
     if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo crear la noticia.') };
     return { ok: true, item: mapNews(res.data.data) };
   },
   async updateNews(id, data) {
-    const formData = toFormData({
+    const res = await http.put(`/news/${id}`, {
       title: data.title,
       summary: data.summary,
       date: data.date,
-      image: data.imageFile || undefined,
+      image: data.image,
     });
-    const res = await http.putForm(`/news/${id}`, formData);
     if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo actualizar la noticia.') };
     return { ok: true, item: mapNews(res.data.data) };
   },
@@ -405,51 +381,13 @@ export const catalog = {
     return { ok: true };
   },
 
+  // La API real solo expone lectura de barberos (GET /barbers); no hay
+  // endpoint para crear/editar/eliminar, así que esta pantalla es de solo
+  // consulta hasta que se agregue ese endpoint al backend.
   async listBarbers(branchId) {
     const res = await http.get('/barbers', branchId ? { branch_id: branchId } : undefined);
     if (!res.ok) return [];
     return (res.data.data || []).map(mapBarber);
-  },
-  async createBarber(data) {
-    const formData = toFormData({
-      name: data.name,
-      email: data.email,
-      phone: data.phone,
-      branch_id: data.branchId,
-      password: data.password,
-      password_confirmation: data.confirmPassword,
-      avatar: data.imageFile || undefined,
-    });
-    const res = await http.postForm('/barbers', formData);
-    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo crear el barbero.') };
-    return { ok: true, item: mapBarber(res.data.data) };
-  },
-  async updateBarber(id, data) {
-    const formData = toFormData({
-      name: data.name,
-      email: data.email,
-      phone: data.phone,
-      branch_id: data.branchId,
-      // Solo se manda si el admin capturó una nueva contraseña.
-      password: data.password || undefined,
-      password_confirmation: data.password ? data.confirmPassword : undefined,
-      avatar: data.imageFile || undefined,
-    });
-    const res = await http.putForm(`/barbers/${id}`, formData);
-    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo actualizar el barbero.') };
-    return { ok: true, item: mapBarber(res.data.data) };
-  },
-  async deleteBarber(id) {
-    const res = await http.delete(`/barbers/${id}`);
-    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo eliminar el barbero.') };
-    return { ok: true };
-  },
-
-  // Clientes existentes (para que el admin elija a quién agendarle una cita).
-  async listClients() {
-    const res = await http.get('/users', { role: 'client', per_page: 100 });
-    if (!res.ok) return [];
-    return (res.data.data || []).map(mapUser);
   },
 };
 
@@ -458,7 +396,6 @@ export const catalog = {
 // ---------------------------------------------------------------------------
 
 export const bot = {
-  // Ya vienen filtradas por el usuario autenticado desde el propio backend.
   async log() {
     const res = await http.get('/notifications');
     if (!res.ok) return [];
@@ -541,21 +478,15 @@ export const appointments = {
     return { ok: true };
   },
 
-  // El admin agenda a nombre de un cliente YA registrado (seleccionado en
-  // el formulario); la API real requiere una cuenta, no admite citas de
-  // mostrador sin cliente.
-  async createByAdmin({ clientId, service, branchId, barberId, dateTime }) {
-    const res = await http.post('/appointments', {
-      client_id: clientId,
-      service_id: service.id,
-      branch_id: branchId,
-      barber_id: barberId,
-      date_time: dateTime,
-      pay_online: false,
-      notify_whatsapp: true,
-    });
-    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo agendar la cita.') };
-    return { ok: true, appointment: mapAppointment(res.data.data) };
+  // La API real requiere que toda cita tenga un client_id (una cuenta real);
+  // no soporta capturar una cita "de mostrador" con solo nombre y teléfono.
+  async createByAdmin() {
+    return {
+      ok: false,
+      error:
+        'Agregar una cita de mostrador sin cuenta todavía no está soportado por la API real. ' +
+        'Pide al cliente que se registre o inicie sesión para poder agendarla.',
+    };
   },
 
   async create({ service, branchId, barberId, dateTime, payOnline, notifyWhatsapp }) {
@@ -599,8 +530,6 @@ export const appointments = {
   },
 
   async requestReschedule(id, note) {
-    // La API no tiene un estado propio para "reagendación solicitada"; se
-    // registra como una reprogramación (queda en la bitácora de la cita).
     const res = await http.put(`/appointments/${id}`, {});
     if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo solicitar la reagendación.') };
     return { ok: true, appointment: mapAppointment(res.data.data) };
@@ -611,7 +540,6 @@ export const appointments = {
 // Pagos en línea
 // ---------------------------------------------------------------------------
 
-// >>> Pendiente: conectar Stripe/Mercado Pago real (no hay endpoint aún) <<<
 export const payments = {
   async createCheckout({ amount, concept }) {
     await new Promise((resolve) => setTimeout(resolve, 700));
