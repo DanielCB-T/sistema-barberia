@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import GoogleAuthButton from './GoogleAuthButton';
 import ImageUploader from './ImageUploader';
+import PasswordInput from './PasswordInput';
 import {
   validarCorreo,
   soloLetras,
@@ -86,6 +87,18 @@ function RegisterForm() {
       setError(res.error);
       return;
     }
+
+    // Con verificación de correo, el registro NO inicia sesión: pedimos al
+    // usuario revisar su correo y lo mandamos al login.
+    if (res.verificationRequired) {
+      push(
+        res.message || 'Cuenta creada. Revisa tu correo para verificar tu cuenta.',
+        'success'
+      );
+      navigate('/');
+      return;
+    }
+
     push(`¡Bienvenido, ${res.user.name.split(' ')[0]}! Tu cuenta fue creada.`, 'success');
     navigate('/dashboard');
   };
@@ -143,13 +156,12 @@ function RegisterForm() {
       <div className="field-row">
         <div className="field">
           <label htmlFor="password">Contraseña</label>
-          <input id="password" type="password" value={form.password} onChange={set('password')} required />
+          <PasswordInput id="password" value={form.password} onChange={set('password')} required />
         </div>
         <div className="field">
           <label htmlFor="confirmPassword">Confirmar contraseña</label>
-          <input
+          <PasswordInput
             id="confirmPassword"
-            type="password"
             value={form.confirmPassword}
             onChange={set('confirmPassword')}
             required

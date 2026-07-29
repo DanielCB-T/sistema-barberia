@@ -151,6 +151,18 @@ function mapOrderItem(it) {
   };
 }
 
+function mapNotification(n) {
+  if (!n) return null;
+  return {
+    id: n.id,
+    type: n.type || null,
+    channel: n.channel,
+    message: n.message,
+    isRead: Boolean(n.is_read),
+    createdAt: n.created_at,
+  };
+}
+
 function mapOrder(o) {
   if (!o) return null;
   return {
@@ -181,19 +193,38 @@ export const auth = {
     });
     const res = await http.postForm('/register', formData);
     if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo crear la cuenta.') };
+    // El backend ya NO inicia sesión automáticamente: exige verificar el
+    // correo antes de entrar. No guardamos token ni sesión.
+    const user = mapUser(res.data.user?.data ?? res.data.user);
+    return {
+      ok: true,
+      user,
+      verificationRequired: res.data.verification_required === true,
+      message: res.message,
+    };
+  },
+
+  async login({ email, password }) {
+    const res = await http.post('/login', { email, password });
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: firstError(res, 'Correo o contraseña incorrectos.'),
+        // 403 = credenciales correctas pero correo sin verificar.
+        needsVerification: res.status === 403,
+      };
+    }
     setToken(res.data.token);
     const user = mapUser(res.data.user?.data ?? res.data.user);
     cacheUser(user);
     return { ok: true, user };
   },
 
-  async login({ email, password }) {
-    const res = await http.post('/login', { email, password });
-    if (!res.ok) return { ok: false, error: firstError(res, 'Correo o contraseña incorrectos.') };
-    setToken(res.data.token);
-    const user = mapUser(res.data.user?.data ?? res.data.user);
-    cacheUser(user);
-    return { ok: true, user };
+  // Reenvía el correo de verificación (respuesta genérica del backend).
+  async resendVerification(email) {
+    const res = await http.post('/email/verify/resend', { email });
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo reenviar el correo.') };
+    return { ok: true, message: res.message };
   },
 
   // La API real todavía no expone un endpoint de OAuth de Google.
@@ -458,16 +489,37 @@ export const catalog = {
 // ---------------------------------------------------------------------------
 
 export const bot = {
-  // Ya vienen filtradas por el usuario autenticado desde el propio backend.
-  async log() {
+  // Lista las notificaciones del usuario autenticado + conteo de no leídas.
+  async list() {
     const res = await http.get('/notifications');
-    if (!res.ok) return [];
-    return (res.data.data || []).map((n) => ({
-      id: n.id,
-      message: n.message,
-      channel: n.channel,
-      sentAt: n.created_at,
-    }));
+    if (!res.ok) return { items: [], unread: 0 };
+    const items = (res.data.data || []).map(mapNotification);
+    const unread = res.data.meta?.unread ?? items.filter((n) => !n.isRead).length;
+    return { items, unread };
+  },
+
+  // Compatibilidad con la versión anterior (devolvía solo el arreglo).
+  async log() {
+    const { items } = await this.list();
+    return items;
+  },
+
+  async markRead(id) {
+    const res = await http.patch(`/notifications/${id}/read`);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo marcar como leída.') };
+    return { ok: true };
+  },
+
+  async markAllRead() {
+    const res = await http.post('/notifications/read-all');
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudieron marcar como leídas.') };
+    return { ok: true };
+  },
+
+  async remove(id) {
+    const res = await http.delete(`/notifications/${id}`);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo eliminar la notificación.') };
+    return { ok: true };
   },
 };
 

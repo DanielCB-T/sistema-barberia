@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { validarPassword } from '../utils/utileria';
 import ImageUploader from '../components/ImageUploader';
+import PasswordInput from '../components/PasswordInput';
 
 function SettingsPage() {
   const { user, updateProfile, changePassword } = useAuth();
@@ -106,17 +107,17 @@ function SettingsPage() {
           <h3>Cambiar contraseña</h3>
           <div className="plain-field">
             <label>Contraseña actual</label>
-            <input type="password" value={pwd.current} onChange={setPwdField('current')} />
+            <PasswordInput value={pwd.current} onChange={setPwdField('current')} />
             {pwdErrors.current && <div className="field-error">{pwdErrors.current}</div>}
           </div>
           <div className="plain-field">
             <label>Nueva contraseña</label>
-            <input type="password" value={pwd.next} onChange={setPwdField('next')} />
+            <PasswordInput value={pwd.next} onChange={setPwdField('next')} />
             {pwdErrors.next && <div className="field-error">{pwdErrors.next}</div>}
           </div>
           <div className="plain-field">
             <label>Confirmar nueva contraseña</label>
-            <input type="password" value={pwd.confirm} onChange={setPwdField('confirm')} />
+            <PasswordInput value={pwd.confirm} onChange={setPwdField('confirm')} />
             {pwdErrors.confirm && <div className="field-error">{pwdErrors.confirm}</div>}
           </div>
           <button className="btn btn--primary" type="submit" disabled={changingPwd}>

@@ -65,3 +65,46 @@ export function validarTelefono(telefono) {
     const expresionRegular = /^\d{10}$/;
     return expresionRegular.test(limpio);
 }
+
+// Convierte una fecha (ISO o parseable) en un texto relativo corto en
+// español: "hace un momento", "hace 5 min", "hace 2 h", "ayer" o la fecha
+// completa. Se usa en el panel de notificaciones del Navbar.
+export function formatearFechaRelativa(fecha) {
+    if (!fecha) {
+        return '';
+    }
+    const d = new Date(fecha);
+    if (Number.isNaN(d.getTime())) {
+        return '';
+    }
+
+    const ahora = new Date();
+    const segundos = Math.floor((ahora - d) / 1000);
+
+    if (segundos < 60) {
+        return 'hace un momento';
+    }
+    const minutos = Math.floor(segundos / 60);
+    if (minutos < 60) {
+        return `hace ${minutos} min`;
+    }
+    const horas = Math.floor(minutos / 60);
+    if (horas < 24) {
+        return `hace ${horas} h`;
+    }
+    const dias = Math.floor(horas / 24);
+    if (dias === 1) {
+        return 'ayer';
+    }
+    if (dias < 7) {
+        return `hace ${dias} días`;
+    }
+
+    return d.toLocaleDateString('es-MX', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}

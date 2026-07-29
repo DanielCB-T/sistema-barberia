@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import Modal from './Modal';
 import ImageUploader from './ImageUploader';
+import PasswordInput from './PasswordInput';
 import { validarCorreo, validarPassword } from '../utils/utileria';
 
 function BarberFormModal({ mode, initial, branches, submitting, onCancel, onSubmit }) {
@@ -82,14 +83,13 @@ function BarberFormModal({ mode, initial, branches, submitting, onCancel, onSubm
             <label htmlFor="password">
               {mode === 'create' ? 'Contraseña' : 'Nueva contraseña (opcional)'}
             </label>
-            <input id="password" type="password" value={form.password} onChange={set('password')} />
+            <PasswordInput id="password" value={form.password} onChange={set('password')} />
             {errors.password && <div className="field-error">{errors.password}</div>}
           </div>
           <div className="form-field" style={{ flex: 1 }}>
             <label htmlFor="confirmPassword">Confirmar contraseña</label>
-            <input
+            <PasswordInput
               id="confirmPassword"
-              type="password"
               value={form.confirmPassword}
               onChange={set('confirmPassword')}
             />

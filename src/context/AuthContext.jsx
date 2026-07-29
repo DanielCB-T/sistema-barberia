@@ -46,9 +46,13 @@ export function AuthProvider({ children }) {
 
   const register = useCallback(async (data) => {
     const res = await auth.register(data);
-    if (res.ok) setUser(res.user);
+    // Con verificación de correo el registro ya NO inicia sesión: solo
+    // marcamos al usuario como autenticado si el backend devolvió sesión.
+    if (res.ok && !res.verificationRequired) setUser(res.user);
     return res;
   }, []);
+
+  const resendVerification = useCallback(async (email) => auth.resendVerification(email), []);
 
   const logout = useCallback(async () => {
     await auth.logout();
@@ -75,6 +79,7 @@ export function AuthProvider({ children }) {
         login,
         loginWithGoogle,
         register,
+        resendVerification,
         logout,
         updateProfile,
         changePassword,
