@@ -1,6 +1,7 @@
 // src/components/BranchFormModal.jsx
 import { useState } from 'react';
 import Modal from './Modal';
+import ImageUploader from './ImageUploader';
 
 function BranchFormModal({ mode, initial, submitting, onCancel, onSubmit }) {
   const [form, setForm] = useState({
@@ -9,8 +10,8 @@ function BranchFormModal({ mode, initial, submitting, onCancel, onSubmit }) {
     phone: initial?.phone || '',
     openingTime: initial?.openingTime || '10:00',
     closingTime: initial?.closingTime || '20:00',
-    image: initial?.image || '',
   });
+  const [imageFile, setImageFile] = useState(null);
   const [errors, setErrors] = useState({});
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -30,7 +31,7 @@ function BranchFormModal({ mode, initial, submitting, onCancel, onSubmit }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!validate()) return;
-    onSubmit(form);
+    onSubmit({ ...form, imageFile });
   };
 
   return (
@@ -62,10 +63,7 @@ function BranchFormModal({ mode, initial, submitting, onCancel, onSubmit }) {
             {errors.closingTime && <div className="field-error">{errors.closingTime}</div>}
           </div>
         </div>
-        <div className="form-field">
-          <label htmlFor="image">URL de imagen</label>
-          <input id="image" value={form.image} onChange={set('image')} placeholder="https://..." />
-        </div>
+        <ImageUploader label="Imagen de la sucursal" currentUrl={initial?.image} onChange={setImageFile} />
         <div className="modal__footer">
           <button type="button" className="btn btn--ghost" onClick={onCancel}>
             Cancelar

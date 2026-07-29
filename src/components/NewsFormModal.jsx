@@ -1,14 +1,15 @@
 // src/components/NewsFormModal.jsx
 import { useState } from 'react';
 import Modal from './Modal';
+import ImageUploader from './ImageUploader';
 
 function NewsFormModal({ mode, initial, submitting, onCancel, onSubmit }) {
   const [form, setForm] = useState({
     title: initial?.title || '',
     summary: initial?.summary || '',
     date: initial?.date || new Date().toISOString().slice(0, 10),
-    image: initial?.image || '',
   });
+  const [imageFile, setImageFile] = useState(null);
   const [errors, setErrors] = useState({});
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -25,7 +26,7 @@ function NewsFormModal({ mode, initial, submitting, onCancel, onSubmit }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!validate()) return;
-    onSubmit(form);
+    onSubmit({ ...form, imageFile });
   };
 
   return (
@@ -46,10 +47,7 @@ function NewsFormModal({ mode, initial, submitting, onCancel, onSubmit }) {
           <input id="date" type="date" value={form.date} onChange={set('date')} />
           {errors.date && <div className="field-error">{errors.date}</div>}
         </div>
-        <div className="form-field">
-          <label htmlFor="image">URL de imagen</label>
-          <input id="image" value={form.image} onChange={set('image')} placeholder="https://..." />
-        </div>
+        <ImageUploader label="Imagen de la noticia" currentUrl={initial?.image} onChange={setImageFile} />
         <div className="modal__footer">
           <button type="button" className="btn btn--ghost" onClick={onCancel}>
             Cancelar
