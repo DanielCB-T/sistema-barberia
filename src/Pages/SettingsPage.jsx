@@ -1,6 +1,6 @@
 // src/components/BranchFormModal.jsx
 import { useState } from 'react';
-import Modal from './Modal';
+import Modal from "../components/Modal";
 // <-- Elimina la línea de ImageUploader
 
 function BranchFormModal({ mode, initial, submitting, onCancel, onSubmit }) {
