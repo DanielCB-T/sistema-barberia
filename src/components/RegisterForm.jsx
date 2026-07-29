@@ -90,16 +90,12 @@ function RegisterForm() {
 
     // Con verificación de correo, el registro NO inicia sesión: pedimos al
     // usuario revisar su correo y lo mandamos al login.
-    if (res.verificationRequired) {
-      push(
-        res.message || 'Cuenta creada. Revisa tu correo para verificar tu cuenta.',
-        'success'
-      );
-      navigate('/');
-      return;
-    }
-
-    push(`¡Bienvenido, ${res.user.name.split(' ')[0]}! Tu cuenta fue creada.`, 'success');
+    // El correo de verificación se envía en segundo plano, pero no bloquea:
+    // entramos directo al panel.
+    push(
+      `¡Bienvenido, ${res.user.name.split(' ')[0]}! Tu cuenta fue creada. Te enviamos un correo para verificarla.`,
+      'success'
+    );
     navigate('/dashboard');
   };
 

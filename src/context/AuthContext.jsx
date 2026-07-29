@@ -46,9 +46,9 @@ export function AuthProvider({ children }) {
 
   const register = useCallback(async (data) => {
     const res = await auth.register(data);
-    // Con verificación de correo el registro ya NO inicia sesión: solo
-    // marcamos al usuario como autenticado si el backend devolvió sesión.
-    if (res.ok && !res.verificationRequired) setUser(res.user);
+    // El registro inicia sesión de una vez (la verificación de correo ya no
+    // bloquea el acceso).
+    if (res.ok) setUser(res.user);
     return res;
   }, []);
 

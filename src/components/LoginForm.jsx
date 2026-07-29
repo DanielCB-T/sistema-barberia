@@ -12,11 +12,7 @@ function LoginForm() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  // Cuando el backend responde 403 (correo sin verificar) mostramos la
-  // opción de reenviar el correo de verificación.
-  const [needsVerification, setNeedsVerification] = useState(false);
-  const [resending, setResending] = useState(false);
-  const { login, resendVerification } = useAuth();
+  const { login } = useAuth();
   const { push } = useToast();
   const navigate = useNavigate();
 
@@ -43,7 +39,6 @@ function LoginForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setNeedsVerification(false);
     if (!validar()) return;
 
     setLoading(true);
@@ -51,48 +46,15 @@ function LoginForm() {
     setLoading(false);
     if (!res.ok) {
       setError(res.error);
-      setNeedsVerification(Boolean(res.needsVerification));
       return;
     }
     push(`Bienvenido de vuelta, ${res.user.name.split(' ')[0]}`, 'success');
     navigate(res.user.role === 'admin' ? '/admin' : '/dashboard');
   };
 
-  const handleResend = async () => {
-    setResending(true);
-    const res = await resendVerification(email.trim());
-    setResending(false);
-    if (res.ok) {
-      push(res.message || 'Te reenviamos el correo de verificación.', 'success');
-    } else {
-      push(res.error || 'No se pudo reenviar el correo.', 'error');
-    }
-  };
-
   return (
     <form onSubmit={handleSubmit} noValidate>
       {error && <div className="form-error">{error}</div>}
-      {needsVerification && (
-        <div className="form-error" style={{ background: 'rgba(255,255,255,0.06)' }}>
-          ¿No recibiste el correo?{' '}
-          <button
-            type="button"
-            className="link-btn"
-            onClick={handleResend}
-            disabled={resending}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--rust-500)',
-              fontWeight: 700,
-              cursor: 'pointer',
-              padding: 0,
-            }}
-          >
-            {resending ? 'Reenviando...' : 'Reenviar verificación'}
-          </button>
-        </div>
-      )}
       <div className="field">
         <label htmlFor="email">Correo electrónico</label>
         <input

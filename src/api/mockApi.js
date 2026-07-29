@@ -193,27 +193,17 @@ export const auth = {
     });
     const res = await http.postForm('/register', formData);
     if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo crear la cuenta.') };
-    // El backend ya NO inicia sesión automáticamente: exige verificar el
-    // correo antes de entrar. No guardamos token ni sesión.
+    // El registro inicia sesión de una vez (la verificación de correo ya no
+    // bloquea el acceso; el correo se envía como paso opcional).
+    setToken(res.data.token);
     const user = mapUser(res.data.user?.data ?? res.data.user);
-    return {
-      ok: true,
-      user,
-      verificationRequired: res.data.verification_required === true,
-      message: res.message,
-    };
+    cacheUser(user);
+    return { ok: true, user, message: res.message };
   },
 
   async login({ email, password }) {
     const res = await http.post('/login', { email, password });
-    if (!res.ok) {
-      return {
-        ok: false,
-        error: firstError(res, 'Correo o contraseña incorrectos.'),
-        // 403 = credenciales correctas pero correo sin verificar.
-        needsVerification: res.status === 403,
-      };
-    }
+    if (!res.ok) return { ok: false, error: firstError(res, 'Correo o contraseña incorrectos.') };
     setToken(res.data.token);
     const user = mapUser(res.data.user?.data ?? res.data.user);
     cacheUser(user);
