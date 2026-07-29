@@ -69,7 +69,7 @@ function CartPage() {
 
       {lastOrder && (
         <div className="receipt-box" style={{ marginBottom: 18 }}>
-          Orden #{lastOrder.id.slice(-6)} generada por ${lastOrder.total.toFixed(2)} ·{' '}
+          Orden #{lastOrder.id} generada por ${lastOrder.total.toFixed(2)} ·{' '}
           {lastOrder.paymentMethod === 'online' ? 'Pago en línea' : 'Pago en sucursal'}
         </div>
       )}

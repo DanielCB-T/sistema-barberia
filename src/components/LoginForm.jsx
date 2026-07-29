@@ -3,10 +3,10 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { validarLongitud } from '../utils/utileria';
+import { validarCorreo, validarLongitud } from '../utils/utileria';
 
 function LoginForm() {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState('');
@@ -19,10 +19,10 @@ function LoginForm() {
   const validar = () => {
     const errores = {};
 
-    if (!username.trim()) {
-      errores.username = 'El usuario es obligatorio.';
-    } else if (!validarLongitud(username, 50)) {
-      errores.username = 'El usuario no puede tener más de 50 caracteres.';
+    if (!email.trim()) {
+      errores.email = 'El correo es obligatorio.';
+    } else if (!validarCorreo(email.trim())) {
+      errores.email = 'Ingresa un correo electrónico válido.';
     }
 
     if (!password) {
@@ -41,7 +41,7 @@ function LoginForm() {
     if (!validar()) return;
 
     setLoading(true);
-    const res = await login(username.trim(), password);
+    const res = await login(email.trim(), password);
     setLoading(false);
     if (!res.ok) {
       setError(res.error);
@@ -55,15 +55,19 @@ function LoginForm() {
     <form onSubmit={handleSubmit} noValidate>
       {error && <div className="form-error">{error}</div>}
       <div className="field">
-        <label htmlFor="username">Usuario</label>
+        <label htmlFor="email">Correo electrónico</label>
         <input
-          id="username"
-          type="text"
-          placeholder="emilys"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
+          id="email"
+          type="email"
+          placeholder="tucorreo@ejemplo.com"
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: undefined }));
+          }}
+          onBlur={validar}
         />
-        {fieldErrors.username && <div className="field-error">{fieldErrors.username}</div>}
+        {fieldErrors.email && <div className="field-error">{fieldErrors.email}</div>}
       </div>
       <div className="field">
         <label htmlFor="password">Contraseña</label>
@@ -72,7 +76,11 @@ function LoginForm() {
           type="password"
           placeholder="••••••••"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            if (fieldErrors.password) setFieldErrors((f) => ({ ...f, password: undefined }));
+          }}
+          onBlur={validar}
         />
         {fieldErrors.password && <div className="field-error">{fieldErrors.password}</div>}
       </div>
@@ -82,14 +90,6 @@ function LoginForm() {
 
       <p className="auth-footer">
         ¿No tienes cuenta? <Link to="/registro">Regístrate</Link>
-      </p>
-      <p className="auth-footer" style={{ fontSize: '0.76rem', opacity: 0.7 }}>
-        Inicia sesión con un usuario de prueba de DummyJSON, por ejemplo{' '}
-        <strong>emilys / emilyspass</strong>. Más usuarios en{' '}
-        <a href="https://dummyjson.com/users" target="_blank" rel="noreferrer">
-          dummyjson.com/users
-        </a>
-        .
       </p>
     </form>
   );

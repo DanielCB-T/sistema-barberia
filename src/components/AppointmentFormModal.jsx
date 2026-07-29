@@ -1,7 +1,6 @@
 // src/components/AppointmentFormModal.jsx
 import { useState } from 'react';
 import Modal from './Modal';
-import { soloLetras, validarTelefono, validarLongitud } from '../utils/utileria';
 import { isWithinBusinessHours, businessHoursMessage } from '../utils/businessHours';
 
 function toLocalInputValue(iso) {
@@ -12,10 +11,21 @@ function toLocalInputValue(iso) {
 }
 
 // mode: 'create' | 'edit'
-function AppointmentFormModal({ mode = 'create', initial, services, branches, barbers, onCancel, onSubmit, submitting }) {
+// clients: solo se usa en modo 'create' (el admin elige un cliente YA
+// registrado; la API real requiere una cuenta, no admite "de mostrador").
+function AppointmentFormModal({
+  mode = 'create',
+  initial,
+  services,
+  branches,
+  barbers,
+  clients = [],
+  onCancel,
+  onSubmit,
+  submitting,
+}) {
   const [form, setForm] = useState({
-    clientName: initial?.clientName || '',
-    clientPhone: initial?.clientPhone || '',
+    clientId: initial?.clientId || clients[0]?.id || '',
     serviceId: initial?.serviceId || services[0]?.id || '',
     branchId: initial?.branchId || branches[0]?.id || '',
     barberId: initial?.barberId || barbers[0]?.id || '',
@@ -27,16 +37,7 @@ function AppointmentFormModal({ mode = 'create', initial, services, branches, ba
 
   const validar = () => {
     const errs = {};
-    if (!form.clientName.trim()) {
-      errs.clientName = 'El nombre del cliente es obligatorio.';
-    } else if (!soloLetras(form.clientName.trim())) {
-      errs.clientName = 'El nombre solo debe contener letras y espacios.';
-    } else if (!validarLongitud(form.clientName, 80)) {
-      errs.clientName = 'Máximo 80 caracteres.';
-    }
-    if (!validarTelefono(form.clientPhone)) {
-      errs.clientPhone = 'El teléfono debe tener 10 dígitos, ej. 9511234567.';
-    }
+    if (mode === 'create' && !form.clientId) errs.clientId = 'Selecciona un cliente.';
     if (!form.serviceId) errs.serviceId = 'Selecciona un servicio.';
     if (!form.branchId) errs.branchId = 'Selecciona una sucursal.';
     if (!form.barberId) errs.barberId = 'Selecciona un barbero.';
@@ -60,23 +61,38 @@ function AppointmentFormModal({ mode = 'create', initial, services, branches, ba
     if (!validar()) return;
     const service = services.find((s) => s.id === form.serviceId);
     const barber = barbers.find((b) => b.id === form.barberId);
-    onSubmit({ ...form, service, barberName: barber?.name, dateTime: new Date(form.dateTime).toISOString() });
+    const client = clients.find((c) => c.id === form.clientId);
+    onSubmit({
+      ...form,
+      service,
+      barberName: barber?.name,
+      clientName: client?.name || initial?.clientName,
+      dateTime: new Date(form.dateTime).toISOString(),
+    });
   };
 
   return (
     <Modal title={mode === 'create' ? 'Agregar cita' : 'Editar cita'} onClose={onCancel}>
       <form onSubmit={handleSubmit} noValidate>
-        <div className="form-field">
-          <label htmlFor="clientName">Nombre del cliente</label>
-          <input id="clientName" value={form.clientName} onChange={set('clientName')} placeholder="Ej. Juan Pérez" />
-          {errors.clientName && <div className="field-error">{errors.clientName}</div>}
-        </div>
-
-        <div className="form-field">
-          <label htmlFor="clientPhone">Teléfono</label>
-          <input id="clientPhone" value={form.clientPhone} onChange={set('clientPhone')} placeholder="9511234567" />
-          {errors.clientPhone && <div className="field-error">{errors.clientPhone}</div>}
-        </div>
+        {mode === 'create' ? (
+          <div className="form-field">
+            <label htmlFor="clientId">Cliente</label>
+            <select id="clientId" value={form.clientId} onChange={set('clientId')}>
+              {clients.length === 0 && <option value="">No hay clientes registrados</option>}
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.email})
+                </option>
+              ))}
+            </select>
+            {errors.clientId && <div className="field-error">{errors.clientId}</div>}
+          </div>
+        ) : (
+          <div className="form-field">
+            <label>Cliente</label>
+            <input value={initial?.clientName || ''} disabled />
+          </div>
+        )}
 
         <div className="form-field">
           <label htmlFor="serviceId">Servicio</label>

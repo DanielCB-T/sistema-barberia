@@ -1,15 +1,19 @@
 // src/components/GoogleAuthButton.jsx
 //
 // Botón de "Ingresar/Registrarse con Google".
-// Esta versión simula el flujo para que el resto de la app (rutas, sesión,
-// roles) funcione de punta a punta sin backend.
+// La API real (Laravel) todavía no expone un endpoint de OAuth de Google;
+// auth.loginWithGoogle() en src/api/mockApi.js devuelve un error explicando
+// esto, así que el botón se ve igual pero avisa que la función no está
+// disponible todavía en vez de fingir una sesión.
 //
 // >>> Para integrar Google real <<<
 // 1) npm install @react-oauth/google
 // 2) Envuelve la app en <GoogleOAuthProvider clientId="TU_CLIENT_ID">
 // 3) Sustituye el botón por <GoogleLogin onSuccess={...} onError={...} />
-// 4) Envía el credential (id_token) a tu backend para verificarlo y crear
-//    la sesión real (auth.loginWithGoogle en mockApi.js es el lugar a reemplazar).
+// 4) Envía el credential (id_token) a un nuevo endpoint /api/auth/google en
+//    el backend, que lo verifique con Google y cree/inicie la sesión real.
+//    Ese es el único lugar que hay que tocar: auth.loginWithGoogle en
+//    src/api/mockApi.js.
 
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
@@ -27,7 +31,7 @@ function GoogleAuthButton({ label = 'Ingrese con Google' }) {
     const res = await loginWithGoogle();
     setLoading(false);
     if (!res.ok) {
-      push('No se pudo iniciar sesión con Google.', 'error');
+      push(res.error || 'No se pudo iniciar sesión con Google.', 'error');
       return;
     }
     push(`Sesión iniciada como ${res.user.name}`, 'success');

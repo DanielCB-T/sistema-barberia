@@ -246,7 +246,6 @@ input, select, textarea {
   flex-wrap: wrap; margin-bottom: 22px;
 }
 .content__title { font-size: 1.9rem; font-weight: 600; }
-.content__subtitle { font-size: 1.2rem; font-weight: 700; margin: 22px 0 14px; color: var(--navy-900); }
 
 .search-bar {
   display: flex; align-items: center; gap: 8px;
@@ -501,15 +500,6 @@ input, select, textarea {
 }
 .cart-summary__total { display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: 800; margin-bottom: 16px; }
 .payment-method-pick { display: flex; gap: 10px; margin-bottom: 18px; }
-
-.client-profile {
-  display: flex; align-items: center; gap: 16px; background: white; border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm); padding: 18px 20px; margin-bottom: 8px;
-}
-.client-profile__avatar { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; }
-.client-profile__name { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.15rem; }
-.client-profile__meta { display: flex; gap: 18px; margin-top: 6px; color: var(--muted); font-size: 0.88rem; }
-.client-profile__meta span { display: inline-flex; align-items: center; gap: 6px; }
 
 /* ---------- Table (admin gestión de citas) ---------- */
 .table-wrap { background: white; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); overflow-x: auto; }

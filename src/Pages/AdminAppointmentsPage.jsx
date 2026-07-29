@@ -2,15 +2,12 @@
 //
 // Tabla de datos (citas) con filtros, paginación reflejada en la URL y CRUD
 // completo (agregar, editar, eliminar), además de las acciones propias del
-// barbero (aceptar / posponer). En cada acción de CRUD se hace primero una
-// petición real a una API (DummyJSON) para practicar la llamada HTTP, y
-// después se refleja el cambio en el estado local para que la tabla se
-// actualice visualmente.
+// barbero (aceptar / posponer). Todas las acciones llaman directamente a la
+// API real de Laravel a través de src/api/mockApi.js.
 import { useCallback, useEffect, useState } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { CheckCircle2, CalendarClock, Pencil, Trash2, Plus, Search } from 'lucide-react';
 import { appointments as appointmentsApi, catalog } from '../api/mockApi';
-import { crearRegistroReal, editarRegistroReal, eliminarRegistroReal } from '../api/dummyPractice';
 import { useToast } from '../context/ToastContext';
 import PostponeModal from '../components/PostponeModal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -58,6 +55,7 @@ function AdminAppointmentsPage() {
   const [services, setServices] = useState([]);
   const [branches, setBranches] = useState([]);
   const [barbers, setBarbers] = useState([]);
+  const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -79,6 +77,7 @@ function AdminAppointmentsPage() {
     catalog.listServices().then(setServices);
     catalog.listBranches().then(setBranches);
     catalog.listBarbers().then(setBarbers);
+    catalog.listClients().then(setClients);
   }, []);
 
   // Debounce del buscador de texto -> se refleja en la URL
@@ -111,13 +110,6 @@ function AdminAppointmentsPage() {
   // 1) Agregar cita: llamada real a la API + reflejo en estado local
   const handleCreate = async (payload) => {
     setSubmitting(true);
-    try {
-      await crearRegistroReal(
-        `Cita: ${payload.clientName} - ${payload.service.name} - ${payload.dateTime}`
-      );
-    } catch {
-      // Si la API de práctica falla, igual seguimos con el flujo local
-    }
     const res = await appointmentsApi.createByAdmin(payload);
     setSubmitting(false);
     if (!res.ok) {
@@ -137,14 +129,6 @@ function AdminAppointmentsPage() {
   const confirmarEdicion = async () => {
     if (!confirmEdit) return;
     setSubmitting(true);
-    try {
-      await editarRegistroReal(
-        confirmEdit.id,
-        `Cita: ${confirmEdit.payload.clientName} - ${confirmEdit.payload.service.name}`
-      );
-    } catch {
-      // Continúa aunque falle la API de práctica
-    }
     const { service, ...rest } = confirmEdit.payload;
     const res = await appointmentsApi.update(confirmEdit.id, {
       ...rest,
@@ -168,11 +152,6 @@ function AdminAppointmentsPage() {
   const confirmarEliminacion = async () => {
     if (!deleteTarget) return;
     setSubmitting(true);
-    try {
-      await eliminarRegistroReal();
-    } catch {
-      // Continúa aunque falle la API de práctica
-    }
     const res = await appointmentsApi.remove(deleteTarget.id);
     setSubmitting(false);
     if (!res.ok) {
@@ -313,9 +292,7 @@ function AdminAppointmentsPage() {
             ) : (
               data.items.map((a) => (
                 <tr key={a.id}>
-                  <td>
-                    <Link to={`/admin/clientes/${a.clientId}`}>{a.clientName}</Link>
-                  </td>
+                  <td>{a.clientName}</td>
                   <td>{a.serviceName}</td>
                   <td>{a.barberName || '—'}</td>
                   <td>{new Date(a.dateTime).toLocaleString('es-MX')}</td>
@@ -368,6 +345,7 @@ function AdminAppointmentsPage() {
           services={services}
           branches={branches}
           barbers={barbers}
+          clients={clients}
           submitting={submitting}
           onCancel={() => setFormModal(null)}
           onSubmit={formModal.mode === 'create' ? handleCreate : handleEditSubmit}

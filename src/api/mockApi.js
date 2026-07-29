@@ -1,82 +1,167 @@
 // src/api/mockApi.js
 //
-// Capa de datos simulada. Imita el comportamiento de una API REST real
-// (con latencia de red y persistencia) usando localStorage.
+// >>> YA CONECTADO A LA API REAL (Laravel + Sanctum) <<<
+// Este módulo mantiene el mismo nombre de archivo y las mismas firmas de
+// funciones que la versión simulada (para no tener que tocar cada página/
+// componente que lo usa), pero ahora cada función habla con la API real
+// a través de src/api/httpClient.js.
 //
-// >>> PARA CONECTAR UN BACKEND REAL <<<
-// Sustituye el cuerpo de cada función por un `fetch('/api/...')` hacia tu
-// servidor. Las firmas (parámetros y forma de la respuesta) ya están
-// pensadas para eso, así que los componentes no necesitan cambiar.
+// Las imágenes (servicios, productos, sucursales, noticias, barberos,
+// avatar) se suben como archivo real (multipart/form-data), nunca como URL
+// de texto; el backend las guarda en storage/app/public/... y regresa la
+// URL completa lista para usarse en un <img>.
 //
-// Integraciones marcadas para reemplazo:
-//  - loginWithGoogle()      -> Google Identity Services / OAuth2 (@react-oauth/google)
-//  - createPaymentIntent()  -> Pasarela de pago real (Stripe / Mercado Pago)
-//  - sendBotNotification()  -> API de WhatsApp/SMS (Twilio, Meta Cloud API, etc.)
+// Limitaciones conocidas (documentadas también en el README de la API):
+//  - loginWithGoogle(): la API real todavía no tiene endpoint de OAuth de
+//    Google, así que este botón muestra un aviso en vez de iniciar sesión.
+//  - payments.createCheckout(): la pasarela de pago real (Stripe/Mercado
+//    Pago) todavía no está conectada; se simula localmente.
+//  - appointments.listAll(): los filtros status/branch/fecha se mandan al
+//    servidor (paginación real); category/search/onlyUpcoming se resuelven
+//    del lado del cliente porque la API aún no los soporta como parámetros.
 
-import {
-  seedServices,
-  seedProducts,
-  seedBranches,
-  seedNews,
-  seedUsers,
-  seedAppointments,
-  seedBarbers,
-} from './seedData';
-import { isWithinBusinessHours, businessHoursMessage } from '../utils/businessHours';
+import { http, firstError, getToken, setToken, toFormData } from './httpClient';
 
-const DB_KEY = 'barberia_db_v1';
 const SESSION_KEY = 'barberia_session_v1';
 
-function loadDB() {
-  const raw = localStorage.getItem(DB_KEY);
-  if (raw) {
-    const db = JSON.parse(raw);
-    // Compatibilidad con una base guardada antes de agregar barberos/órdenes.
-    if (!db.barbers) db.barbers = seedBarbers;
-    if (!db.orders) db.orders = [];
-    return db;
-  }
-  const initial = {
-    users: seedUsers,
-    services: seedServices,
-    products: seedProducts,
-    branches: seedBranches,
-    news: seedNews,
-    appointments: seedAppointments,
-    barbers: seedBarbers,
-    orders: [],
-    botLog: [],
+function cacheUser(user) {
+  if (user) localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+  else localStorage.removeItem(SESSION_KEY);
+}
+
+// ---------------------------------------------------------------------------
+// Mappers: convierten la forma "snake_case anidado" de la API a la misma
+// forma "camelCase plana" que ya usaban los componentes.
+// ---------------------------------------------------------------------------
+
+function mapUser(u) {
+  if (!u) return null;
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    phone: u.phone || '',
+    birthdate: u.birthdate || '',
+    role: u.role,
+    branchId: u.branch_id ?? null,
+    avatar: u.avatar || `https://i.pravatar.cc/150?u=${encodeURIComponent(u.email || String(u.id))}`,
+    provider: 'local',
   };
-  localStorage.setItem(DB_KEY, JSON.stringify(initial));
-  return initial;
 }
 
-function saveDB(db) {
-  localStorage.setItem(DB_KEY, JSON.stringify(db));
+function mapBranch(b) {
+  if (!b) return null;
+  const openingTime = (b.opening_time || '').slice(0, 5);
+  const closingTime = (b.closing_time || '').slice(0, 5);
+  return {
+    id: b.id,
+    name: b.name,
+    address: b.address,
+    phone: b.phone,
+    openingTime,
+    closingTime,
+    // La API no guarda un rango de días (ej. "Lun a Sáb"), solo horas; se
+    // arma un texto genérico para no dejar la tarjeta de sucursal en blanco.
+    hours: `Todos los días, ${openingTime} - ${closingTime}`,
+    image: b.image,
+  };
 }
 
-// Simula latencia de red
-function delay(data, ms = 450) {
-  return new Promise((resolve) => setTimeout(() => resolve(data), ms));
+function mapService(s) {
+  if (!s) return null;
+  return {
+    id: s.id,
+    name: s.name,
+    category: s.category,
+    price: Number(s.price),
+    duration: s.duration,
+    description: s.description,
+    image: s.image,
+  };
 }
 
-function uid(prefix) {
-  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+function mapProduct(p) {
+  if (!p) return null;
+  return {
+    id: p.id,
+    name: p.name,
+    price: Number(p.price),
+    stock: p.stock,
+    description: p.description,
+    image: p.image,
+  };
 }
 
-// Traslape de horario, acotado al mismo barbero: dos citas de barberos
-// distintos pueden coincidir en horario sin problema.
-function barberHasConflict(db, { barberId, dateTime, duration, excludeId }) {
-  const start = new Date(dateTime).getTime();
-  const end = start + duration * 60000;
-  return db.appointments.some((a) => {
-    if (excludeId && a.id === excludeId) return false;
-    if (a.status === 'cancelada') return false;
-    if (a.barberId !== barberId) return false;
-    const aStart = new Date(a.dateTime).getTime();
-    const aEnd = aStart + a.duration * 60000;
-    return start < aEnd && end > aStart;
-  });
+function mapNews(n) {
+  if (!n) return null;
+  return { id: n.id, title: n.title, summary: n.summary, date: n.date, image: n.image };
+}
+
+function mapBarber(b) {
+  if (!b) return null;
+  return {
+    id: b.id,
+    name: b.name,
+    email: b.email,
+    phone: b.phone || '',
+    avatar: b.avatar,
+    branchId: b.branch_id ?? null,
+    branchName: b.branch?.name || null,
+  };
+}
+
+// "2026-08-15 11:00" (como lo regresa Laravel) -> string parseable por Date().
+function toIsoLike(dateTime) {
+  if (!dateTime) return dateTime;
+  return dateTime.includes('T') ? dateTime : `${dateTime.replace(' ', 'T')}:00`;
+}
+
+function mapAppointment(a) {
+  if (!a) return null;
+  return {
+    id: a.id,
+    clientId: a.client?.id,
+    clientName: a.client?.name,
+    clientPhone: a.client?.phone,
+    serviceId: a.service?.id,
+    serviceName: a.service?.name,
+    category: a.service?.category,
+    branchId: a.branch?.id,
+    barberId: a.barber?.id,
+    barberName: a.barber?.name,
+    dateTime: toIsoLike(a.date_time),
+    duration: a.duration,
+    status: a.status,
+    history: (a.history || []).map((h) => ({
+      action: h.status,
+      at: h.changed_at,
+      note: h.note,
+    })),
+  };
+}
+
+function mapOrderItem(it) {
+  return {
+    id: it.id,
+    productId: it.product_id,
+    productName: it.product?.name,
+    productImage: it.product?.image,
+    unitPrice: Number(it.unit_price),
+    quantity: it.quantity,
+  };
+}
+
+function mapOrder(o) {
+  if (!o) return null;
+  return {
+    id: o.id,
+    clientId: o.client?.id,
+    status: o.status,
+    total: Number(o.total),
+    paymentMethod: o.payment_method,
+    createdAt: o.created_at,
+    items: (o.items || []).map(mapOrderItem),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -84,70 +169,46 @@ function barberHasConflict(db, { barberId, dateTime, duration, excludeId }) {
 // ---------------------------------------------------------------------------
 
 export const auth = {
-  async register({ name, email, phone, birthdate, password }) {
-    const db = loadDB();
-    const exists = db.users.some((u) => u.email.toLowerCase() === email.toLowerCase());
-    if (exists) {
-      return delay({ ok: false, error: 'Ya existe una cuenta con ese correo.' });
-    }
-    const user = {
-      id: uid('client'),
+  async register({ name, email, phone, birthdate, password, confirmPassword, avatarFile }) {
+    const formData = toFormData({
       name,
       email,
       phone,
       birthdate,
       password,
-      role: 'client',
-      provider: 'local',
-      avatar: `https://i.pravatar.cc/150?u=${encodeURIComponent(email)}`,
-    };
-    db.users.push(user);
-    saveDB(db);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-    return delay({ ok: true, user });
+      password_confirmation: confirmPassword,
+      avatar: avatarFile || undefined,
+    });
+    const res = await http.postForm('/register', formData);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo crear la cuenta.') };
+    setToken(res.data.token);
+    const user = mapUser(res.data.user?.data ?? res.data.user);
+    cacheUser(user);
+    return { ok: true, user };
   },
 
   async login({ email, password }) {
-    const db = loadDB();
-    const user = db.users.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-    );
-    if (!user) return delay({ ok: false, error: 'Correo o contraseña incorrectos.' });
-    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-    return delay({ ok: true, user });
+    const res = await http.post('/login', { email, password });
+    if (!res.ok) return { ok: false, error: firstError(res, 'Correo o contraseña incorrectos.') };
+    setToken(res.data.token);
+    const user = mapUser(res.data.user?.data ?? res.data.user);
+    cacheUser(user);
+    return { ok: true, user };
   },
 
-  // >>> Reemplazar por Google Identity Services (One Tap / OAuth code flow) <<<
-  // En producción: obtén el id_token de Google, envíalo a tu backend, éste
-  // verifica la firma y crea/recupera al usuario, devolviendo tu propio JWT.
+  // La API real todavía no expone un endpoint de OAuth de Google.
   async loginWithGoogle() {
-    const db = loadDB();
-    const googleProfile = {
-      name: 'Cuenta de Google',
-      email: 'cuenta.google@gmail.com',
+    return {
+      ok: false,
+      error: 'El inicio de sesión con Google todavía no está conectado a la API real.',
     };
-    let user = db.users.find((u) => u.email === googleProfile.email);
-    if (!user) {
-      user = {
-        id: uid('client'),
-        name: googleProfile.name,
-        email: googleProfile.email,
-        phone: '',
-        birthdate: '',
-        role: 'client',
-        provider: 'google',
-        avatar: 'https://i.pravatar.cc/150?img=47',
-      };
-      db.users.push(user);
-      saveDB(db);
-    }
-    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-    return delay({ ok: true, user }, 700);
   },
 
   async logout() {
-    localStorage.removeItem(SESSION_KEY);
-    return delay({ ok: true });
+    await http.post('/logout');
+    setToken(null);
+    cacheUser(null);
+    return { ok: true };
   },
 
   getCurrentUser() {
@@ -155,86 +216,258 @@ export const auth = {
     return raw ? JSON.parse(raw) : null;
   },
 
-  // changes puede incluir { currentPassword, password } para cambiar la
-  // contraseña; en ese caso se valida que currentPassword coincida antes
-  // de reemplazarla. (En el backend real la contraseña siempre va
-  // hasheada; aquí es un mock local, nunca se muestra en ninguna vista.)
-  async updateProfile(userId, changes) {
-    const db = loadDB();
-    const idx = db.users.findIndex((u) => u.id === userId);
-    if (idx === -1) return delay({ ok: false, error: 'Usuario no encontrado.' });
-
-    const { currentPassword, password, ...rest } = changes;
-    if (password) {
-      if (db.users[idx].password !== currentPassword) {
-        return delay({ ok: false, error: 'La contraseña actual no es correcta.' });
-      }
-      rest.password = password;
+  // Valida el token guardado contra el servidor (GET /api/user). Se usa al
+  // arrancar la app para no confiar ciegamente en lo que quedó en caché:
+  // si el token ya expiró o fue revocado, se cierra la sesión local.
+  async fetchCurrentUser() {
+    if (!getToken()) return { ok: false };
+    const res = await http.get('/user');
+    if (!res.ok) {
+      setToken(null);
+      cacheUser(null);
+      return { ok: false };
     }
+    const user = mapUser(res.data.data ?? res.data);
+    cacheUser(user);
+    return { ok: true, user };
+  },
 
-    db.users[idx] = { ...db.users[idx], ...rest };
-    saveDB(db);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(db.users[idx]));
-    return delay({ ok: true, user: db.users[idx] });
+  async updateProfile(_userId, changes) {
+    const formData = toFormData({
+      name: changes.name,
+      phone: changes.phone,
+      birthdate: changes.birthdate || null,
+      avatar: changes.avatarFile || undefined,
+    });
+    const res = await http.putForm('/profile', formData);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo actualizar tu perfil.') };
+    const user = mapUser(res.data.data ?? res.data);
+    cacheUser(user);
+    return { ok: true, user };
+  },
+
+  // Cambiar contraseña estando ya autenticado (pantalla de Ajustes).
+  async changePassword({ currentPassword, password, confirmPassword }) {
+    const res = await http.post('/change-password', {
+      current_password: currentPassword,
+      password,
+      password_confirmation: confirmPassword,
+    });
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo cambiar la contraseña.') };
+    return { ok: true };
   },
 };
 
 // ---------------------------------------------------------------------------
-// Catálogo: servicios, productos, sucursales, noticias
+// Catálogo: servicios, productos, sucursales, noticias, barberos
 // ---------------------------------------------------------------------------
 
 export const catalog = {
   async listServices() {
-    const db = loadDB();
-    return delay(db.services);
+    const res = await http.get('/services', { per_page: 100 });
+    if (!res.ok) return [];
+    return (res.data.data || []).map(mapService);
   },
+  async createService(data) {
+    const formData = toFormData({
+      name: data.name,
+      category: data.category,
+      price: data.price,
+      duration: data.duration,
+      description: data.description,
+      image: data.imageFile || undefined,
+    });
+    const res = await http.postForm('/services', formData);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo crear el servicio.') };
+    return { ok: true, item: mapService(res.data.data) };
+  },
+  async updateService(id, data) {
+    const formData = toFormData({
+      name: data.name,
+      category: data.category,
+      price: data.price,
+      duration: data.duration,
+      description: data.description,
+      image: data.imageFile || undefined,
+    });
+    const res = await http.putForm(`/services/${id}`, formData);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo actualizar el servicio.') };
+    return { ok: true, item: mapService(res.data.data) };
+  },
+  async deleteService(id) {
+    const res = await http.delete(`/services/${id}`);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo eliminar el servicio.') };
+    return { ok: true };
+  },
+
   async listProducts() {
-    const db = loadDB();
-    return delay(db.products);
+    const res = await http.get('/products', { per_page: 100 });
+    if (!res.ok) return [];
+    return (res.data.data || []).map(mapProduct);
   },
+  async createProduct(data) {
+    const formData = toFormData({
+      name: data.name,
+      price: data.price,
+      stock: data.stock,
+      description: data.description,
+      image: data.imageFile || undefined,
+    });
+    const res = await http.postForm('/products', formData);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo crear el producto.') };
+    return { ok: true, item: mapProduct(res.data.data) };
+  },
+  async updateProduct(id, data) {
+    const formData = toFormData({
+      name: data.name,
+      price: data.price,
+      stock: data.stock,
+      description: data.description,
+      image: data.imageFile || undefined,
+    });
+    const res = await http.putForm(`/products/${id}`, formData);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo actualizar el producto.') };
+    return { ok: true, item: mapProduct(res.data.data) };
+  },
+  async deleteProduct(id) {
+    const res = await http.delete(`/products/${id}`);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo eliminar el producto.') };
+    return { ok: true };
+  },
+
   async listBranches() {
-    const db = loadDB();
-    return delay(db.branches);
+    const res = await http.get('/branches');
+    if (!res.ok) return [];
+    return (res.data.data || []).map(mapBranch);
   },
+  async createBranch(data) {
+    const formData = toFormData({
+      name: data.name,
+      address: data.address,
+      phone: data.phone,
+      opening_time: data.openingTime,
+      closing_time: data.closingTime,
+      image: data.imageFile || undefined,
+    });
+    const res = await http.postForm('/branches', formData);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo crear la sucursal.') };
+    return { ok: true, item: mapBranch(res.data.data) };
+  },
+  async updateBranch(id, data) {
+    const formData = toFormData({
+      name: data.name,
+      address: data.address,
+      phone: data.phone,
+      opening_time: data.openingTime,
+      closing_time: data.closingTime,
+      image: data.imageFile || undefined,
+    });
+    const res = await http.putForm(`/branches/${id}`, formData);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo actualizar la sucursal.') };
+    return { ok: true, item: mapBranch(res.data.data) };
+  },
+  async deleteBranch(id) {
+    const res = await http.delete(`/branches/${id}`);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo eliminar la sucursal.') };
+    return { ok: true };
+  },
+
   async listNews() {
-    const db = loadDB();
-    return delay(db.news);
+    const res = await http.get('/news', { per_page: 100 });
+    if (!res.ok) return [];
+    return (res.data.data || []).map(mapNews);
   },
-  // Barberos disponibles, opcionalmente filtrados por sucursal.
+  async createNews(data) {
+    const formData = toFormData({
+      title: data.title,
+      summary: data.summary,
+      date: data.date,
+      image: data.imageFile || undefined,
+    });
+    const res = await http.postForm('/news', formData);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo crear la noticia.') };
+    return { ok: true, item: mapNews(res.data.data) };
+  },
+  async updateNews(id, data) {
+    const formData = toFormData({
+      title: data.title,
+      summary: data.summary,
+      date: data.date,
+      image: data.imageFile || undefined,
+    });
+    const res = await http.putForm(`/news/${id}`, formData);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo actualizar la noticia.') };
+    return { ok: true, item: mapNews(res.data.data) };
+  },
+  async deleteNews(id) {
+    const res = await http.delete(`/news/${id}`);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo eliminar la noticia.') };
+    return { ok: true };
+  },
+
   async listBarbers(branchId) {
-    const db = loadDB();
-    const list = branchId ? db.barbers.filter((b) => b.branchId === branchId) : db.barbers;
-    return delay(list);
+    const res = await http.get('/barbers', branchId ? { branch_id: branchId } : undefined);
+    if (!res.ok) return [];
+    return (res.data.data || []).map(mapBarber);
+  },
+  async createBarber(data) {
+    const formData = toFormData({
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      branch_id: data.branchId,
+      password: data.password,
+      password_confirmation: data.confirmPassword,
+      avatar: data.imageFile || undefined,
+    });
+    const res = await http.postForm('/barbers', formData);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo crear el barbero.') };
+    return { ok: true, item: mapBarber(res.data.data) };
+  },
+  async updateBarber(id, data) {
+    const formData = toFormData({
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      branch_id: data.branchId,
+      // Solo se manda si el admin capturó una nueva contraseña.
+      password: data.password || undefined,
+      password_confirmation: data.password ? data.confirmPassword : undefined,
+      avatar: data.imageFile || undefined,
+    });
+    const res = await http.putForm(`/barbers/${id}`, formData);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo actualizar el barbero.') };
+    return { ok: true, item: mapBarber(res.data.data) };
+  },
+  async deleteBarber(id) {
+    const res = await http.delete(`/barbers/${id}`);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo eliminar el barbero.') };
+    return { ok: true };
+  },
+
+  // Clientes existentes (para que el admin elija a quién agendarle una cita).
+  async listClients() {
+    const res = await http.get('/users', { role: 'client', per_page: 100 });
+    if (!res.ok) return [];
+    return (res.data.data || []).map(mapUser);
   },
 };
 
 // ---------------------------------------------------------------------------
-// Bot de notificaciones (WhatsApp / SMS)
+// Notificaciones (campanita del Navbar)
 // ---------------------------------------------------------------------------
 
-// >>> Reemplazar por una llamada real a tu proveedor de mensajería <<<
-// Ejemplo con Twilio (desde tu backend, nunca desde el cliente):
-//   await twilioClient.messages.create({
-//     from: 'whatsapp:+14155238886',
-//     to: `whatsapp:${phone}`,
-//     body: message,
-//   });
-async function sendBotNotification(phone, message) {
-  const db = loadDB();
-  db.botLog.push({
-    id: uid('bot'),
-    phone,
-    message,
-    sentAt: new Date().toISOString(),
-  });
-  saveDB(db);
-  return delay({ ok: true }, 300);
-}
-
 export const bot = {
+  // Ya vienen filtradas por el usuario autenticado desde el propio backend.
   async log() {
-    const db = loadDB();
-    return delay([...db.botLog].reverse());
+    const res = await http.get('/notifications');
+    if (!res.ok) return [];
+    return (res.data.data || []).map((n) => ({
+      id: n.id,
+      message: n.message,
+      channel: n.channel,
+      sentAt: n.created_at,
+    }));
   },
 };
 
@@ -243,28 +476,39 @@ export const bot = {
 // ---------------------------------------------------------------------------
 
 export const appointments = {
-  async listForClient(clientId) {
-    const db = loadDB();
-    const list = db.appointments
-      .filter((a) => a.clientId === clientId)
+  async listForClient() {
+    const res = await http.get('/appointments', { per_page: 100 });
+    if (!res.ok) return [];
+    return (res.data.data || [])
+      .map(mapAppointment)
       .sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
-    return delay(list);
   },
 
   async listAll({ category, status, search, onlyUpcoming, page = 1, pageSize = 6 } = {}) {
-    const db = loadDB();
-    let list = [...db.appointments].sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+    const needsClientFilter = Boolean(category || (search && search.trim()) || onlyUpcoming);
+
+    const res = await http.get('/appointments', {
+      status: status || undefined,
+      per_page: needsClientFilter ? 200 : pageSize,
+      page: needsClientFilter ? 1 : page,
+    });
+    if (!res.ok) return { items: [], total: 0, page, pageSize };
+
+    let list = (res.data.data || []).map(mapAppointment);
+
+    if (!needsClientFilter) {
+      return { items: list, total: res.data.meta?.total ?? list.length, page, pageSize };
+    }
+
     if (category) list = list.filter((a) => a.category === category);
-    if (status) list = list.filter((a) => a.status === status);
     if (search && search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(
         (a) =>
-          a.clientName.toLowerCase().includes(q) || a.serviceName.toLowerCase().includes(q)
+          a.clientName?.toLowerCase().includes(q) || a.serviceName?.toLowerCase().includes(q)
       );
     }
     if (onlyUpcoming) {
-      // Solo citas de hoy y de mañana
       const now = new Date();
       const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const end = new Date(start.getTime() + 2 * 24 * 3600000);
@@ -273,189 +517,93 @@ export const appointments = {
         return d >= start && d < end;
       });
     }
+
     const total = list.length;
-    const start = (page - 1) * pageSize;
-    const pageItems = list.slice(start, start + pageSize);
-    return delay({ items: pageItems, total, page, pageSize });
+    const startIdx = (page - 1) * pageSize;
+    return { items: list.slice(startIdx, startIdx + pageSize), total, page, pageSize };
   },
 
-  // Edición manual de una cita por el barbero/administrador (CRUD)
   async update(id, changes) {
-    const db = loadDB();
-    const idx = db.appointments.findIndex((a) => a.id === id);
-    if (idx === -1) return delay({ ok: false, error: 'Cita no encontrada.' });
-    const current = db.appointments[idx];
-    const barberId = changes.barberId ?? current.barberId;
-    const dateTime = changes.dateTime ?? current.dateTime;
-    const duration = changes.duration ?? current.duration;
-    const branchId = changes.branchId ?? current.branchId;
-    const branch = db.branches.find((b) => b.id === branchId);
-    if (branch && !isWithinBusinessHours(branch, dateTime, duration)) {
-      return delay({ ok: false, error: businessHoursMessage(branch) });
-    }
-    if (
-      barberHasConflict(db, { barberId, dateTime, duration, excludeId: id })
-    ) {
-      return delay({ ok: false, error: 'Ese barbero ya tiene una cita en ese horario, elige otro.' });
-    }
-    db.appointments[idx] = {
-      ...current,
-      ...changes,
-      history: [
-        ...current.history,
-        { action: 'editada', at: new Date().toISOString() },
-      ],
-    };
-    saveDB(db);
-    return delay({ ok: true, appointment: db.appointments[idx] });
+    const body = {};
+    if (changes.serviceId !== undefined) body.service_id = changes.serviceId;
+    if (changes.branchId !== undefined) body.branch_id = changes.branchId;
+    if (changes.barberId !== undefined) body.barber_id = changes.barberId;
+    if (changes.dateTime !== undefined) body.date_time = changes.dateTime;
+
+    const res = await http.put(`/appointments/${id}`, body);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo actualizar la cita.') };
+    return { ok: true, appointment: mapAppointment(res.data.data) };
   },
 
-  // Eliminación definitiva de una cita (CRUD)
   async remove(id) {
-    const db = loadDB();
-    const idx = db.appointments.findIndex((a) => a.id === id);
-    if (idx === -1) return delay({ ok: false, error: 'Cita no encontrada.' });
-    db.appointments.splice(idx, 1);
-    saveDB(db);
-    return delay({ ok: true });
+    const res = await http.delete(`/appointments/${id}`);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo eliminar la cita.') };
+    return { ok: true };
   },
 
-  // Alta manual de una cita hecha directamente por el barbero/administrador
-  async createByAdmin({ clientName, clientPhone, service, branchId, barberId, barberName, dateTime }) {
-    const db = loadDB();
-    const branch = db.branches.find((b) => b.id === branchId);
-    if (branch && !isWithinBusinessHours(branch, dateTime, service.duration)) {
-      return delay({ ok: false, error: businessHoursMessage(branch) });
-    }
-    if (barberHasConflict(db, { barberId, dateTime, duration: service.duration })) {
-      return delay({ ok: false, error: 'Ese barbero ya tiene una cita en ese horario, elige otro.' });
-    }
-    const newApt = {
-      id: uid('apt'),
-      clientId: uid('walkin'),
-      clientName,
-      clientPhone,
-      serviceId: service.id,
-      serviceName: service.name,
-      category: service.category,
-      branchId,
-      barberId,
-      barberName,
-      dateTime,
-      duration: service.duration,
-      status: 'pendiente',
-      history: [{ action: 'creada por el administrador', at: new Date().toISOString() }],
-    };
-    db.appointments.push(newApt);
-    saveDB(db);
-    return delay({ ok: true, appointment: newApt });
+  // El admin agenda a nombre de un cliente YA registrado (seleccionado en
+  // el formulario); la API real requiere una cuenta, no admite citas de
+  // mostrador sin cliente.
+  async createByAdmin({ clientId, service, branchId, barberId, dateTime }) {
+    const res = await http.post('/appointments', {
+      client_id: clientId,
+      service_id: service.id,
+      branch_id: branchId,
+      barber_id: barberId,
+      date_time: dateTime,
+      pay_online: false,
+      notify_whatsapp: true,
+    });
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo agendar la cita.') };
+    return { ok: true, appointment: mapAppointment(res.data.data) };
   },
 
-  async create({ clientId, clientName, clientPhone, service, branchId, barberId, barberName, dateTime }) {
-    const db = loadDB();
-    const branch = db.branches.find((b) => b.id === branchId);
-    if (branch && !isWithinBusinessHours(branch, dateTime, service.duration)) {
-      return delay({ ok: false, error: businessHoursMessage(branch) });
-    }
-    if (barberHasConflict(db, { barberId, dateTime, duration: service.duration })) {
-      return delay({ ok: false, error: 'Ese barbero ya tiene una cita en ese horario, elige otro.' });
-    }
-    const newApt = {
-      id: uid('apt'),
-      clientId,
-      clientName,
-      clientPhone,
-      serviceId: service.id,
-      serviceName: service.name,
-      category: service.category,
-      branchId,
-      barberId,
-      barberName,
-      dateTime,
-      duration: service.duration,
-      status: 'pendiente',
-      history: [{ action: 'creada', at: new Date().toISOString() }],
-    };
-    db.appointments.push(newApt);
-    saveDB(db);
-    return delay({ ok: true, appointment: newApt });
+  async create({ service, branchId, barberId, dateTime, payOnline, notifyWhatsapp }) {
+    const res = await http.post('/appointments', {
+      service_id: service.id,
+      branch_id: branchId,
+      barber_id: barberId,
+      date_time: dateTime,
+      pay_online: Boolean(payOnline),
+      notify_whatsapp: notifyWhatsapp ?? true,
+    });
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo agendar la cita.') };
+    return { ok: true, appointment: mapAppointment(res.data.data) };
   },
 
   async accept(id) {
-    const db = loadDB();
-    const apt = db.appointments.find((a) => a.id === id);
-    if (!apt) return delay({ ok: false, error: 'Cita no encontrada.' });
-    apt.status = 'confirmada';
-    apt.history.push({ action: 'aceptada', at: new Date().toISOString() });
-    saveDB(db);
-    await sendBotNotification(
-      apt.clientPhone,
-      `Hola ${apt.clientName}, tu cita de ${apt.serviceName} fue confirmada para el ${new Date(
-        apt.dateTime
-      ).toLocaleString('es-MX')}.`
-    );
-    return delay({ ok: true, appointment: apt });
+    const res = await http.patch(`/appointments/${id}/status`, { status: 'confirmada' });
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo confirmar la cita.') };
+    return { ok: true, appointment: mapAppointment(res.data.data) };
   },
 
-  // El administrador pospone la cita y notifica al cliente por bot
   async postpone(id, { newDateTime, reason }) {
-    const db = loadDB();
-    const apt = db.appointments.find((a) => a.id === id);
-    if (!apt) return delay({ ok: false, error: 'Cita no encontrada.' });
-    const oldDate = apt.dateTime;
-    apt.dateTime = newDateTime;
-    apt.status = 'pospuesta';
-    apt.history.push({
-      action: 'pospuesta',
-      at: new Date().toISOString(),
-      reason,
-      from: oldDate,
-      to: newDateTime,
+    if (newDateTime) {
+      const rescheduleRes = await http.put(`/appointments/${id}`, { date_time: newDateTime });
+      if (!rescheduleRes.ok) {
+        return { ok: false, error: firstError(rescheduleRes, 'No se pudo reprogramar la cita.') };
+      }
+    }
+    const res = await http.patch(`/appointments/${id}/status`, {
+      status: 'pospuesta',
+      note: reason,
     });
-    saveDB(db);
-    await sendBotNotification(
-      apt.clientPhone,
-      `Hola ${apt.clientName}, tu cita de ${apt.serviceName} fue reprogramada para el ${new Date(
-        newDateTime
-      ).toLocaleString('es-MX')}. Motivo: ${reason || 'ajuste de agenda'}.`
-    );
-    return delay({ ok: true, appointment: apt });
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo posponer la cita.') };
+    return { ok: true, appointment: mapAppointment(res.data.data) };
   },
 
-  // El cliente puede cancelar únicamente con 3+ horas de anticipación
   async cancel(id) {
-    const db = loadDB();
-    const apt = db.appointments.find((a) => a.id === id);
-    if (!apt) return delay({ ok: false, error: 'Cita no encontrada.' });
-    const hoursLeft = (new Date(apt.dateTime).getTime() - Date.now()) / 3600000;
-    if (hoursLeft < 3) {
-      return delay({
-        ok: false,
-        error: 'Solo puedes cancelar con al menos 3 horas de anticipación.',
-      });
-    }
-    apt.status = 'cancelada';
-    apt.history.push({ action: 'cancelada', at: new Date().toISOString() });
-    saveDB(db);
-    return delay({ ok: true, appointment: apt });
+    const res = await http.patch(`/appointments/${id}/status`, { status: 'cancelada' });
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo cancelar la cita.') };
+    return { ok: true, appointment: mapAppointment(res.data.data) };
   },
 
-  // El cliente solicita reagendación; el admin la revisa y la reprograma
   async requestReschedule(id, note) {
-    const db = loadDB();
-    const apt = db.appointments.find((a) => a.id === id);
-    if (!apt) return delay({ ok: false, error: 'Cita no encontrada.' });
-    const hoursLeft = (new Date(apt.dateTime).getTime() - Date.now()) / 3600000;
-    if (hoursLeft < 3) {
-      return delay({
-        ok: false,
-        error: 'Solo puedes solicitar reagendación con al menos 3 horas de anticipación.',
-      });
-    }
-    apt.status = 'reagendacion_solicitada';
-    apt.history.push({ action: 'reagendación solicitada', at: new Date().toISOString(), note });
-    saveDB(db);
-    return delay({ ok: true, appointment: apt });
+    // La API no tiene un estado propio para "reagendación solicitada"; se
+    // registra como una reprogramación (queda en la bitácora de la cita).
+    const res = await http.put(`/appointments/${id}`, {});
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo solicitar la reagendación.') };
+    return { ok: true, appointment: mapAppointment(res.data.data) };
   },
 };
 
@@ -463,23 +611,18 @@ export const appointments = {
 // Pagos en línea
 // ---------------------------------------------------------------------------
 
-// >>> Reemplazar por la pasarela real (Stripe / Mercado Pago) <<<
-// Ejemplo Stripe: crear un PaymentIntent en tu backend y confirmar con
-// stripe.confirmCardPayment(clientSecret) en el cliente.
+// >>> Pendiente: conectar Stripe/Mercado Pago real (no hay endpoint aún) <<<
 export const payments = {
   async createCheckout({ amount, concept }) {
-    // Simulamos una llamada a la pasarela de pago
-    await delay(null, 900);
-    const success = true; // aquí vendría la respuesta real de la pasarela
-    if (!success) return { ok: false, error: 'El pago fue rechazado.' };
+    await new Promise((resolve) => setTimeout(resolve, 700));
     return {
       ok: true,
       receipt: {
-        id: uid('pay'),
+        id: `pay-${Date.now()}`,
         amount,
         concept,
         date: new Date().toISOString(),
-        method: 'Tarjeta terminada en 4242',
+        method: 'Tarjeta terminada en 4242 (simulado)',
       },
     };
   },
@@ -488,167 +631,43 @@ export const payments = {
 // ---------------------------------------------------------------------------
 // Carrito y órdenes
 // ---------------------------------------------------------------------------
-//
-// El carrito no es una tabla aparte: es la orden (status 'carrito') del
-// cliente todavía sin confirmar. Al hacer checkout esa misma orden cambia
-// de estado y deja de ser el carrito activo (igual que en la API real).
-
-function recalcOrderTotal(order) {
-  order.total = order.items.reduce((sum, it) => sum + it.quantity * it.unitPrice, 0);
-}
-
-function getOrCreateCart(db, clientId) {
-  let cart = db.orders.find((o) => o.clientId === clientId && o.status === 'carrito');
-  if (!cart) {
-    cart = { id: uid('order'), clientId, items: [], total: 0, status: 'carrito', paymentMethod: null, createdAt: new Date().toISOString() };
-    db.orders.push(cart);
-  }
-  return cart;
-}
 
 export const cart = {
-  async get(clientId) {
-    const db = loadDB();
-    const c = getOrCreateCart(db, clientId);
-    saveDB(db);
-    return delay(c);
+  async get() {
+    const res = await http.get('/cart');
+    if (!res.ok) return { id: null, items: [], total: 0, status: 'carrito' };
+    return mapOrder(res.data.data);
   },
 
-  // Si el producto ya está en el carrito, suma la cantidad al item existente.
-  async addItem(clientId, productId, quantity = 1) {
-    const db = loadDB();
-    const product = db.products.find((p) => p.id === productId);
-    if (!product) return delay({ ok: false, error: 'Producto no encontrado.' });
-
-    const c = getOrCreateCart(db, clientId);
-    const existing = c.items.find((it) => it.productId === productId);
-    const requestedTotal = quantity + (existing?.quantity || 0);
-
-    if (requestedTotal > product.stock) {
-      return delay({ ok: false, error: `Solo hay ${product.stock} unidades disponibles de "${product.name}".` });
-    }
-
-    if (existing) {
-      existing.quantity = requestedTotal;
-    } else {
-      c.items.push({
-        id: uid('item'),
-        productId: product.id,
-        productName: product.name,
-        productImage: product.image,
-        unitPrice: product.price,
-        quantity,
-      });
-    }
-    recalcOrderTotal(c);
-    saveDB(db);
-    return delay({ ok: true, cart: c });
+  async addItem(_clientId, productId, quantity = 1) {
+    const res = await http.post('/cart/items', { product_id: productId, quantity });
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo agregar el producto.') };
+    return { ok: true, cart: mapOrder(res.data.data) };
   },
 
-  async updateItem(clientId, itemId, quantity) {
-    const db = loadDB();
-    const c = getOrCreateCart(db, clientId);
-    const item = c.items.find((it) => it.id === itemId);
-    if (!item) return delay({ ok: false, error: 'El producto ya no está en el carrito.' });
-
-    const product = db.products.find((p) => p.id === item.productId);
-    if (product && quantity > product.stock) {
-      return delay({ ok: false, error: `Solo hay ${product.stock} unidades disponibles de "${item.productName}".` });
-    }
-
-    item.quantity = quantity;
-    recalcOrderTotal(c);
-    saveDB(db);
-    return delay({ ok: true, cart: c });
+  async updateItem(_clientId, itemId, quantity) {
+    const res = await http.put(`/cart/items/${itemId}`, { quantity });
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo actualizar el producto.') };
+    return { ok: true, cart: mapOrder(res.data.data) };
   },
 
-  async removeItem(clientId, itemId) {
-    const db = loadDB();
-    const c = getOrCreateCart(db, clientId);
-    c.items = c.items.filter((it) => it.id !== itemId);
-    recalcOrderTotal(c);
-    saveDB(db);
-    return delay({ ok: true, cart: c });
+  async removeItem(_clientId, itemId) {
+    const res = await http.delete(`/cart/items/${itemId}`);
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo quitar el producto.') };
+    return { ok: true, cart: mapOrder(res.data.data) };
   },
 };
 
 export const orders = {
-  async listForClient(clientId) {
-    const db = loadDB();
-    return delay(
-      db.orders
-        .filter((o) => o.clientId === clientId && o.status !== 'carrito')
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    );
+  async listForClient() {
+    const res = await http.get('/orders', { per_page: 100 });
+    if (!res.ok) return [];
+    return (res.data.data || []).map(mapOrder);
   },
 
-  // Convierte el carrito activo del cliente en una orden generada: valida
-  // existencias, descuenta stock y cambia el estado de "carrito" a "pagado".
-  async checkout(clientId, paymentMethod) {
-    const db = loadDB();
-    const c = getOrCreateCart(db, clientId);
-
-    if (c.items.length === 0) {
-      return delay({ ok: false, error: 'Tu carrito está vacío, agrega productos antes de generar la orden.' });
-    }
-
-    for (const item of c.items) {
-      const product = db.products.find((p) => p.id === item.productId);
-      if (!product || item.quantity > product.stock) {
-        return delay({ ok: false, error: `Ya no hay suficientes existencias de "${item.productName}".` });
-      }
-    }
-
-    c.items.forEach((item) => {
-      const product = db.products.find((p) => p.id === item.productId);
-      product.stock -= item.quantity;
-    });
-
-    c.status = 'pagado';
-    c.paymentMethod = paymentMethod;
-    c.paidAt = new Date().toISOString();
-    saveDB(db);
-    return delay({ ok: true, order: c });
-  },
-};
-
-// ---------------------------------------------------------------------------
-// Ficha de cliente (panel de administración)
-// ---------------------------------------------------------------------------
-export const clients = {
-  // Devuelve los datos del cliente (si está registrado) y todo su historial
-  // de citas. Un walk-in creado por el administrador no tiene cuenta de
-  // usuario, así que se arma una ficha mínima a partir de sus citas.
-  async getHistory(clientId) {
-    const db = loadDB();
-    const clientAppointments = db.appointments
-      .filter((a) => a.clientId === clientId)
-      .sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
-
-    const registered = db.users.find((u) => u.id === clientId && u.role === 'client');
-
-    if (!registered && clientAppointments.length === 0) {
-      return delay(null);
-    }
-
-    const client = registered
-      ? {
-          id: registered.id,
-          name: registered.name,
-          email: registered.email,
-          phone: registered.phone,
-          avatar: registered.avatar,
-          registered: true,
-        }
-      : {
-          id: clientId,
-          name: clientAppointments[0].clientName,
-          email: null,
-          phone: clientAppointments[0].clientPhone,
-          avatar: null,
-          registered: false,
-        };
-
-    return delay({ client, appointments: clientAppointments });
+  async checkout(_clientId, paymentMethod) {
+    const res = await http.post('/orders/checkout', { payment_method: paymentMethod });
+    if (!res.ok) return { ok: false, error: firstError(res, 'No se pudo generar la orden.') };
+    return { ok: true, order: mapOrder(res.data.data) };
   },
 };

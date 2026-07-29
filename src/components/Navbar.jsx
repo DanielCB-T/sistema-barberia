@@ -14,8 +14,9 @@ function Navbar({ onToggleSidebar }) {
   const panelRef = useRef(null);
 
   useEffect(() => {
+    if (!user) return;
     bot.log().then(setNotifs);
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     function onClickOutside(e) {
@@ -32,7 +33,7 @@ function Navbar({ onToggleSidebar }) {
     navigate('/');
   };
 
-  const myNotifs = notifs.filter((n) => n.phone === user?.phone);
+  const myNotifs = notifs;
 
   return (
     <header className="topbar">

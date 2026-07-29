@@ -11,7 +11,11 @@ import MyAppointmentsPage from './Pages/MyAppointmentsPage';
 import CartPage from './Pages/CartPage';
 import AdminPage from './Pages/AdminPage';
 import AdminAppointmentsPage from './Pages/AdminAppointmentsPage';
-import AdminClientPage from './Pages/AdminClientPage';
+import AdminServicesPage from './Pages/AdminServicesPage';
+import AdminProductsPage from './Pages/AdminProductsPage';
+import AdminBranchesPage from './Pages/AdminBranchesPage';
+import AdminNewsPage from './Pages/AdminNewsPage';
+import AdminBarbersPage from './Pages/AdminBarbersPage';
 import SettingsPage from './Pages/SettingsPage';
 import AppLayout from './components/AppLayout';
 import ClientSidebar from './components/ClientSidebar';
@@ -52,7 +56,11 @@ function App() {
       >
         <Route index element={<AdminPage />} />
         <Route path="gestion-citas" element={<AdminAppointmentsPage />} />
-        <Route path="clientes/:id" element={<AdminClientPage />} />
+        <Route path="servicios" element={<AdminServicesPage />} />
+        <Route path="productos" element={<AdminProductsPage />} />
+        <Route path="sucursales" element={<AdminBranchesPage />} />
+        <Route path="noticias" element={<AdminNewsPage />} />
+        <Route path="barberos" element={<AdminBarbersPage />} />
         <Route path="ajustes" element={<SettingsPage />} />
       </Route>
 

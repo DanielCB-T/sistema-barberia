@@ -4,6 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import GoogleAuthButton from './GoogleAuthButton';
+import ImageUploader from './ImageUploader';
 import {
   validarCorreo,
   soloLetras,
@@ -27,6 +28,7 @@ const initialForm = {
 
 function RegisterForm() {
   const [form, setForm] = useState(initialForm);
+  const [avatarFile, setAvatarFile] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
@@ -78,7 +80,7 @@ function RegisterForm() {
     }
 
     setLoading(true);
-    const res = await register(form);
+    const res = await register({ ...form, avatarFile });
     setLoading(false);
     if (!res.ok) {
       setError(res.error);
@@ -126,6 +128,8 @@ function RegisterForm() {
           <input id="birthdate" type="date" value={form.birthdate} onChange={set('birthdate')} required />
         </div>
       </div>
+
+      <ImageUploader label="Foto de perfil (opcional)" onChange={setAvatarFile} dark />
 
       <div className="field">
         <label htmlFor="preferredBranch">Sucursal de preferencia</label>
